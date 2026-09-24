@@ -1,9 +1,18 @@
 MVM_VERSION = "0.1.0";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "user.home", "~" ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
+MVM_CURRENT = MVM_HOME & "/current";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
+
+function showCurrent() {
+    if ( !fileExists( MVM_CURRENT ) ) {
+        println( "No MatchBox version is active. Run 'mvm use <version>'." );
+        return;
+    }
+    println( "Current MatchBox version: " & trim( fileRead( MVM_CURRENT ) ) );
+}
 
 function showHelp() {
     println( "📦 MatchBox Version Manager (MVM) v" & MVM_VERSION );
@@ -36,6 +45,9 @@ switch ( command ) {
     case "--help":
     case "-h":
         showHelp();
+        break;
+    case "current":
+        showCurrent();
         break;
     case "version":
         println( "MVM version: " & MVM_VERSION );
