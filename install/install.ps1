@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$repository = "ortus-boxlang/mvm"
+$repository = "ortus-boxlang/matchbox-quick-installer"
 $mvmHome = if ($env:MVM_HOME) { $env:MVM_HOME } else { Join-Path $HOME ".mvm" }
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPOSITORY="ortus-boxlang/mvm"
+REPOSITORY="ortus-boxlang/matchbox-quick-installer"
 MVM_HOME="${MVM_HOME:-$HOME/.mvm}"
 OS="$(uname -s)"
 ARCH="$(uname -m)"
