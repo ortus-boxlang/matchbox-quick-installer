@@ -1,4 +1,4 @@
-MVM_VERSION = "0.1.1";
+MVM_VERSION = "0.1.2";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CACHE = MVM_HOME & "/cache";
@@ -122,7 +122,7 @@ function installVersion( requestedVersion, force=false ) {
     var versionDir = MVM_VERSIONS & "/" & version;
     if ( directoryExists( versionDir ) && !force ) {
         println( "MatchBox " & version & " is already installed. Use --force to reinstall." );
-        return;
+        return version;
     }
 
     var assetName = getPlatformAssetName();
@@ -173,6 +173,7 @@ function installVersion( requestedVersion, force=false ) {
     }
     if ( hadVersion ) directoryDelete( backupDir, true );
     println( "MatchBox " & version & " installed." );
+    return version;
 }
 
 function getCurrentVersion() {
@@ -228,6 +229,12 @@ function useVersion( version ) {
     fileWrite( MVM_CURRENT, version & chr( 10 ) );
     createMatchboxShim();
     println( "Now using MatchBox " & version );
+}
+
+function updateLatestVersion() {
+    var version = installVersion( "latest" );
+    useVersion( version );
+    println( "Updated MatchBox to " & version );
 }
 
 function showTui() {
@@ -310,6 +317,60 @@ function showCurrent() {
     println( "Current MatchBox version: " & current );
 }
 
+function cleanCache() {
+    if ( directoryExists( MVM_CACHE ) ) directoryDelete( MVM_CACHE, true );
+    directoryCreate( MVM_CACHE );
+    println( "MVM download cache cleared." );
+}
+
+function doctor() {
+    var windows = isWindows();
+    var binDirectory = MVM_HOME & "/bin";
+    var expectedBin = binDirectory;
+    if ( windows ) expectedBin = replace( expectedBin, "/", chr( 92 ), "all" ).lCase();
+    var path = getsystemsetting( "PATH", "" );
+    var pathEntries = listToArray( path, windows ? ";" : ":" );
+    var binOnPath = false;
+    for ( pathEntry in pathEntries ) {
+        pathEntry = trim( pathEntry );
+        if ( windows ) pathEntry = replace( pathEntry, "/", chr( 92 ), "all" ).lCase();
+        if ( pathEntry == expectedBin ) binOnPath = true;
+    }
+
+    println( "MVM version: " & MVM_VERSION );
+    println( "MVM_HOME: " & MVM_HOME );
+    if ( !binOnPath ) {
+        println( "MVM bin directory is not on PATH: " & binDirectory );
+        cliexit( 1 );
+    }
+
+    if ( !fileExists( MVM_CURRENT ) ) {
+        println( "No MatchBox version is active. Run 'mvm use latest'." );
+        println( "MVM is healthy." );
+        return;
+    }
+
+    var current = getCurrentVersion();
+    if ( !len( current ) ) {
+        println( "Invalid active version marker: " & MVM_CURRENT );
+        cliexit( 1 );
+    }
+    var binaryName = windows ? "matchbox.exe" : "matchbox";
+    var binaryPath = MVM_VERSIONS & "/" & current & "/bin/" & binaryName;
+    if ( !fileExists( binaryPath ) ) {
+        println( "Active MatchBox binary is missing: " & binaryPath );
+        cliexit( 1 );
+    }
+    var shimPath = binDirectory & "/matchbox" & ( windows ? ".cmd" : "" );
+    if ( !fileExists( shimPath ) ) {
+        println( "MatchBox command shim is missing. Run 'mvm use " & current & "'." );
+        cliexit( 1 );
+    }
+    println( "Active MatchBox: " & current );
+    println( "matchbox command is available." );
+    println( "MVM is healthy." );
+}
+
 function getForwardedArgs( positionals ) {
     var forwarded = [];
     for ( var i = 2; i <= arrayLen( positionals ); i++ ) arrayAppend( forwarded, positionals[ i ] );
@@ -348,9 +409,12 @@ function showHelp() {
     println( "USAGE: mvm <command> [arguments]" );
     println( "" );
     println( "  install <version>     Install a MatchBox version" );
+    println( "  update                Install and activate the latest stable MatchBox" );
     println( "  use [version]         Activate a version or read .mvmrc" );
     println( "  local [version]       Set or show the current directory's .mvmrc" );
     println( "  current               Show the active MatchBox version" );
+    println( "  doctor                Check MVM and the active MatchBox installation" );
+    println( "  clean                 Clear temporary download files" );
     println( "  list                  List installed versions" );
     println( "  list-remote           List versions available to install" );
     println( "  remove <version>      Remove an installed version" );
@@ -390,8 +454,17 @@ switch ( command ) {
     case "current":
         showCurrent();
         break;
+    case "doctor":
+        doctor();
+        break;
+    case "clean":
+        cleanCache();
+        break;
     case "install":
         installVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "latest", cli.options.keyExists( "force" ) && cli.options.force );
+        break;
+    case "update":
+        updateLatestVersion();
         break;
     case "exec":
     case "run":

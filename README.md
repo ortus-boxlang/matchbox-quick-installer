@@ -36,7 +36,7 @@ mvm local latest
 mvm use
 ```
 
-Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+`mvm update` installs and activates the latest stable MatchBox. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
 
 ## Build and test
 

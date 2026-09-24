@@ -35,6 +35,17 @@ class extends="testbox.system.BaseSpec" {
                 expect( exactInstall.output & exactInstall.error ).toInclude( "already installed" );
             } );
 
+            it( "updates and activates the latest MatchBox release", function() {
+                var update = runMvm( [ "update" ] );
+                var current = runMvm( [ "current" ] );
+                var versions = reMatchNoCase( "[0-9]+[.][0-9]+[.][0-9]+", update.output & update.error );
+
+                expect( update.exitCode ).toBe( 0 );
+                expect( arrayLen( versions ) ).toBeGT( 0 );
+                expect( current.output ).toInclude( versions[ 1 ] );
+                expect( update.output & update.error ).toInclude( "Now using MatchBox " & versions[ 1 ] );
+            } );
+
             it( "activates the local version and executes MatchBox", function() {
                 expect( runMvm( [ "install", "latest" ] ).exitCode ).toBe( 0 );
                 var installed = runMvm( [ "list" ] );
@@ -56,6 +67,7 @@ class extends="testbox.system.BaseSpec" {
                         arguments=[ "-c", 'PATH="' & variables.mvmHome & '/bin:$PATH" matchbox --version' ],
                         timeout=30
                     );
+                var doctor = runMvm( [ "doctor" ] );
                 var removed = runMvm( [ "remove", versions[ 1 ] ] );
                 var currentAfterRemove = runMvm( [ "current" ] );
                 var listAfterRemove = runMvm( [ "list" ] );
@@ -68,6 +80,8 @@ class extends="testbox.system.BaseSpec" {
                 expect( execution.output & execution.error ).toInclude( versions[ 1 ] );
                 expect( matchbox.exitCode ).toBe( 0 );
                 expect( matchbox.output & matchbox.error ).toInclude( versions[ 1 ] );
+                expect( doctor.exitCode ).toBe( 0 );
+                expect( doctor.output & doctor.error ).toInclude( "Active MatchBox: " & versions[ 1 ] );
                 expect( removed.output & removed.error ).toInclude( "removed" );
                 expect( currentAfterRemove.output ).toInclude( "No MatchBox version is active" );
                 expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );
@@ -112,7 +126,9 @@ class extends="testbox.system.BaseSpec" {
 
             it( "prints the MVM application version", function() {
                 var result = runMvm( [ "version" ] );
-                expect( result.output & result.error ).toInclude( "MVM version: 0.1.1" );
+                expect(
+                    reFindNoCase( "^MVM version: [0-9]+[.][0-9]+[.][0-9]+(-[A-Za-z0-9.-]+)?$", trim( result.output & result.error ) )
+                ).toBeGT( 0 );
             } );
 
             it( "stores a project version in .mvmrc", function() {
@@ -133,7 +149,27 @@ class extends="testbox.system.BaseSpec" {
 
             it( "reports when no MatchBox version is active", function() {
                 var result = runMvm( [ "current" ] );
+                var doctor = runMvm( [ "doctor" ] );
                 expect( result.output & result.error ).toInclude( "No MatchBox version is active" );
+                expect( doctor.exitCode ).toBe( 0 );
+                expect( doctor.output & doctor.error ).toInclude( "No MatchBox version is active" );
+            } );
+
+            it( "cleans cached files without removing installed versions", function() {
+                var versionDir = variables.mvmHome & "/versions/0.10.2";
+                var cachedFile = variables.mvmHome & "/cache/download.partial";
+                directoryCreate( variables.mvmHome & "/cache" );
+                directoryCreate( versionDir & "/bin" );
+                fileWrite( variables.mvmHome & "/current", "0.10.2" );
+                fileWrite( cachedFile, "partial download" );
+
+                var result = runMvm( [ "clean" ] );
+
+                expect( result.exitCode ).toBe( 0 );
+                expect( result.output & result.error ).toInclude( "cache cleared" );
+                expect( fileExists( cachedFile ) ).toBeFalse();
+                expect( directoryExists( versionDir ) ).toBeTrue();
+                expect( fileExists( variables.mvmHome & "/current" ) ).toBeTrue();
             } );
 
             it( "reports an empty install when MVM_HOME has no versions", function() {
@@ -150,7 +186,10 @@ class extends="testbox.system.BaseSpec" {
             name: getsystemsetting( "MVM_BIN", "" ),
             arguments: args,
             timeout: 180,
-            environment: { MVM_HOME: variables.mvmHome }
+            environment: {
+                MVM_HOME: variables.mvmHome,
+                PATH: variables.mvmHome & "/bin" & ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ? ";" : ":" ) & getsystemsetting( "PATH", "" )
+            }
         };
         if ( len( workingDir ) ) options.directory = workingDir;
         return systemExecute( argumentCollection=options );
