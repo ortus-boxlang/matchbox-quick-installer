@@ -67,23 +67,26 @@ function normalizeVersion( version ) {
     return version.startsWith( "v" ) ? listLast( version, "v" ) : version;
 }
 
-function listRemoteVersions() {
+function getRemoteReleases() {
     var releases = githubJson( MATCHBOX_GITHUB_API & "/releases?per_page=100" );
     var assetName = getPlatformAssetName();
-    var latestShown = false;
+    var available = [];
+    for ( release in releases ) {
+        if ( !isValidVersion( normalizeVersion( release.tag_name ) ) ) continue;
+        if ( len( findReleaseAsset( release, assetName ) ) ) arrayAppend( available, release );
+    }
+    return available;
+}
+
+function listRemoteVersions() {
+    var releases = getRemoteReleases();
     println( "Available MatchBox versions:" );
+    var latestShown = false;
     for ( release in releases ) {
         var version = normalizeVersion( release.tag_name );
-        if ( !isValidVersion( version ) ) continue;
-        var hasAsset = false;
-        for ( asset in release.assets ) {
-            if ( asset.name == assetName ) hasAsset = true;
-        }
-        if ( hasAsset ) {
-            var suffix = release.prerelease ? " (pre-release)" : ( !latestShown ? " (latest)" : "" );
-            println( "  " & version & suffix );
-            if ( !release.prerelease ) latestShown = true;
-        }
+        var suffix = release.prerelease ? " (pre-release)" : ( !latestShown ? " (latest)" : "" );
+        println( "  " & version & suffix );
+        if ( !release.prerelease ) latestShown = true;
     }
 }
 
@@ -198,6 +201,40 @@ function useVersion( version ) {
     println( "Now using MatchBox " & version );
 }
 
+function showTui() {
+    if ( !cliIsTerminal() ) {
+        println( "The MVM TUI requires an interactive terminal. Use 'mvm list-remote' instead." );
+        return;
+    }
+
+    var releases = getRemoteReleases();
+    var installed = directoryList( MVM_VERSIONS, false, "name" );
+    var current = getCurrentVersion();
+    var choices = [];
+    for ( release in releases ) {
+        var version = normalizeVersion( release.tag_name );
+        var status = version == current ? "current" : ( directoryExists( MVM_VERSIONS & "/" & version ) ? "installed" : "available" );
+        arrayAppend( choices, version & " (" & status & ")" );
+    }
+    for ( version in installed ) {
+        var found = false;
+        for ( release in releases ) {
+            if ( normalizeVersion( release.tag_name ) == normalizeVersion( version ) ) found = true;
+        }
+        if ( !found ) arrayAppend( choices, normalizeVersion( version ) & " (installed)" );
+    }
+    if ( !arrayLen( choices ) ) {
+        println( "No MatchBox versions are available for this platform." );
+        return;
+    }
+
+    var selected = cliselect( "Select a MatchBox version", choices );
+    if ( !len( selected ) ) return;
+    var selectedVersion = listFirst( selected, " " );
+    if ( !directoryExists( MVM_VERSIONS & "/" & selectedVersion ) ) installVersion( selectedVersion );
+    useVersion( selectedVersion );
+}
+
 function removeVersion( version ) {
     version = normalizeVersion( trim( version ) );
     if ( !isValidVersion( version ) ) {
@@ -294,6 +331,8 @@ function showHelp() {
     println( "  version               Show MVM version" );
     println( "  help                  Show this help" );
     println( "" );
+    println( "  install <version> --force  Reinstall an existing version" );
+    println( "" );
     println( "MVM_HOME defaults to ~/.mvm" );
 }
 
@@ -332,6 +371,9 @@ switch ( command ) {
     case "remove":
     case "uninstall":
         removeVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "" );
+        break;
+    case "tui":
+        showTui();
         break;
     case "list-remote":
         listRemoteVersions();

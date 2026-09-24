@@ -60,6 +60,11 @@ class extends="testbox.system.BaseSpec" {
                 expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );
             } );
 
+            it( "reports when TUI is requested without an interactive terminal", function() {
+                var result = runMvm( [ "tui" ] );
+                expect( result.output & result.error ).toInclude( "interactive terminal" );
+            } );
+
             it( "defaults to .mvm under the user's home directory", function() {
                 var home = getTempDirectory() & "/mvm-default-home-" & createUUID();
                 directoryCreate( home );
