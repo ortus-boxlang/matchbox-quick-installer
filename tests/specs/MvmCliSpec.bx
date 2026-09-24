@@ -35,15 +35,46 @@ class extends="testbox.system.BaseSpec" {
                 expect( exactInstall.output & exactInstall.error ).toInclude( "already installed" );
             } );
 
-            it( "updates and activates the latest MatchBox release", function() {
+            it( "updates the MVM executable from the latest release", function() {
+                var binDirectory = variables.mvmHome & "/bin";
+                var mvmBinary = binDirectory & "/mvm";
+                directoryCreate( binDirectory );
+                fileWrite( mvmBinary, "old MVM binary" );
+
                 var update = runMvm( [ "update" ] );
-                var current = runMvm( [ "current" ] );
+                var installed = systemExecute( name=mvmBinary, arguments=[ "version" ], timeout=30 );
                 var versions = reMatchNoCase( "[0-9]+[.][0-9]+[.][0-9]+", update.output & update.error );
 
                 expect( update.exitCode ).toBe( 0 );
+                expect( update.output & update.error ).toInclude( "Updated MVM to " );
                 expect( arrayLen( versions ) ).toBeGT( 0 );
-                expect( current.output ).toInclude( versions[ 1 ] );
-                expect( update.output & update.error ).toInclude( "Now using MatchBox " & versions[ 1 ] );
+                expect( installed.exitCode ).toBe( 0 );
+                expect( installed.output & installed.error ).toInclude( "MVM version: " & versions[ 1 ] );
+            } );
+
+            it( "asks before updating MVM on interactive startup", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var binDirectory = variables.mvmHome & "/bin";
+                var mvmBinary = binDirectory & "/mvm";
+                var newline = createObject( "java", "java.lang.System" ).lineSeparator();
+                directoryCreate( binDirectory );
+                fileWrite( mvmBinary, "##!/bin/sh" & newline & "echo 'MVM version: 0.0.0'" & newline );
+                var chmod = systemExecute( name="chmod", arguments=[ "+x", mvmBinary ], timeout=10 );
+                var result = systemExecute(
+                    name="/bin/sh",
+                    arguments=[ "-c", "echo n | script -qec '$MVM_BIN current' /dev/null" ],
+                    timeout=30,
+                    environment={
+                        MVM_HOME: variables.mvmHome,
+                        MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
+                        PATH: getsystemsetting( "PATH", "" )
+                    }
+                );
+
+                expect( chmod.exitCode ).toBe( 0 );
+                expect( result.exitCode ).toBe( 0 );
+                expect( result.output & result.error ).toInclude( "Update now? [y/N]" );
             } );
 
             it( "activates the local version and executes MatchBox", function() {

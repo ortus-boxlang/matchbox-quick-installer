@@ -1,38 +1,48 @@
-MVM_VERSION = "0.1.2";
+MVM_VERSION = "0.1.3";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CACHE = MVM_HOME & "/cache";
 MVM_CURRENT = MVM_HOME & "/current";
 MATCHBOX_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox";
+MVM_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox-quick-installer";
+MVM_UPDATE_CHECK = MVM_HOME & "/update-check";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
 if ( !directoryExists( MVM_CACHE ) ) directoryCreate( MVM_CACHE );
 
-function githubJson( url ) {
+function githubJson( url, failFast=true, timeout=30 ) {
     var response = {};
     try {
         response = jsonDeserialize( http({
             url: url,
             headers: { "User-Agent": "MVM" },
-            timeout: 30
+            timeout: timeout
         }).get() );
     } catch ( any e ) {
+        if ( !failFast ) return {};
         println( "Could not contact GitHub: " & e.message );
         cliexit( 1 );
     }
     if ( response.status != 200 ) {
+        if ( !failFast ) return {};
         println( "GitHub request failed with HTTP " & response.status );
         cliexit( 1 );
     }
-    return jsonDeserialize( response.body );
+    try {
+        return jsonDeserialize( response.body );
+    } catch ( any e ) {
+        if ( !failFast ) return {};
+        println( "Invalid GitHub response: " & e.message );
+        cliexit( 1 );
+    }
 }
 
 function isWindows() {
     return getsystemsetting( "OS", "" ).lCase() contains "windows";
 }
 
-function getPlatformAssetName() {
+function getPlatformAssetName( prefix="matchbox" ) {
     var windows = isWindows();
     var os = "";
     if ( windows ) {
@@ -59,7 +69,7 @@ function getPlatformAssetName() {
         println( "Unsupported architecture: " & arch );
         cliexit( 1 );
     }
-    return "matchbox-" & os & "-" & arch & ( windows ? ".exe" : "" );
+    return prefix & "-" & os & "-" & arch & ( windows ? ".exe" : "" );
 }
 
 function normalizeVersion( version ) {
@@ -92,6 +102,33 @@ function listRemoteVersions() {
 
 function isValidVersion( version ) {
     return reFind( "^[A-Za-z0-9][A-Za-z0-9.+_-]*$", version ) == 1;
+}
+
+function compareVersions( left, right ) {
+    var leftParts = listToArray( listFirst( left, "-" ), "." );
+    var rightParts = listToArray( listFirst( right, "-" ), "." );
+    for ( var i = 1; i <= 3; i++ ) {
+        var leftPart = i <= arrayLen( leftParts ) ? val( leftParts[ i ] ) : 0;
+        var rightPart = i <= arrayLen( rightParts ) ? val( rightParts[ i ] ) : 0;
+        if ( leftPart > rightPart ) return 1;
+        if ( leftPart < rightPart ) return -1;
+    }
+    var leftPrerelease = find( "-", left ) > 0;
+    var rightPrerelease = find( "-", right ) > 0;
+    if ( leftPrerelease && !rightPrerelease ) return -1;
+    if ( !leftPrerelease && rightPrerelease ) return 1;
+    return 0;
+}
+
+function getInstalledMvmVersion( binaryPath ) {
+    if ( !fileExists( binaryPath ) ) return "";
+    try {
+        var result = systemExecute( binaryPath, [ "version" ], 10 );
+        var versions = reMatchNoCase( "[0-9]+[.][0-9]+[.][0-9]+(-[A-Za-z0-9.-]+)?", result.output & result.error );
+        return result.exitCode == 0 && arrayLen( versions ) ? versions[ 1 ] : "";
+    } catch ( any e ) {
+        return "";
+    }
 }
 
 function getReleaseInfo( version ) {
@@ -231,10 +268,148 @@ function useVersion( version ) {
     println( "Now using MatchBox " & version );
 }
 
-function updateLatestVersion() {
-    var version = installVersion( "latest" );
-    useVersion( version );
-    println( "Updated MatchBox to " & version );
+function updateFailure( message, failFast ) {
+    println( "MVM update failed: " & message );
+    if ( failFast ) cliexit( 1 );
+    return false;
+}
+
+function replaceMvmOnUnix( downloadPath, binaryPath ) {
+    var backupPath = binaryPath & ".previous";
+    if ( fileExists( backupPath ) ) {
+        try {
+            fileDelete( backupPath );
+        } catch ( any e ) {
+            return e.message;
+        }
+    }
+    try {
+        fileMove( binaryPath, backupPath );
+        fileMove( downloadPath, binaryPath );
+        fileSetExecutable( binaryPath );
+    } catch ( any e ) {
+        if ( fileExists( backupPath ) ) {
+            if ( fileExists( binaryPath ) ) fileDelete( binaryPath );
+            fileMove( backupPath, binaryPath );
+        }
+        return e.message;
+    }
+    try {
+        if ( fileExists( backupPath ) ) fileDelete( backupPath );
+    } catch ( any e ) {}
+    return "";
+}
+
+function scheduleMvmUpdateOnWindows( downloadPath, binDirectory ) {
+    var pendingPath = binDirectory & "/mvm-update.exe";
+    var scriptPath = binDirectory & "/mvm-update.cmd";
+    var quote = chr( 34 );
+    var newline = chr( 13 ) & chr( 10 );
+    try {
+        if ( fileExists( pendingPath ) ) fileDelete( pendingPath );
+        if ( fileExists( scriptPath ) ) fileDelete( scriptPath );
+        fileMove( downloadPath, pendingPath );
+        fileWrite( scriptPath,
+            "@echo off" & newline &
+            "set /a tries=0" & newline &
+            ":retry" & newline &
+            "move /y " & quote & "%~dp0mvm-update.exe" & quote & " " & quote & "%~dp0mvm.exe" & quote & " >nul 2>&1" & newline &
+            "if not errorlevel 1 goto done" & newline &
+            "set /a tries+=1" & newline &
+            "if %tries% geq 30 goto failed" & newline &
+            "timeout /t 1 /nobreak >nul" & newline &
+            "goto retry" & newline &
+            ":done" & newline &
+            "del " & quote & "%~f0" & quote & " >nul 2>&1" & newline &
+            "exit /b 0" & newline &
+            ":failed" & newline &
+            "echo MVM update failed. Run the installer again." & newline &
+            "del " & quote & "%~dp0mvm-update.exe" & quote & " >nul 2>&1" & newline &
+            "exit /b 1" & newline
+        );
+        var launch = systemExecute(
+            "cmd",
+            [ "/c", "start " & quote & quote & " /b " & quote & scriptPath & quote & " >nul 2>&1" ],
+            10
+        );
+        return launch.exitCode == 0 ? "" : "Could not start the Windows updater.";
+    } catch ( any e ) {
+        return e.message;
+    }
+}
+
+function updateMvmExecutable( release, failFast=true ) {
+    var version = normalizeVersion( release.tag_name ?: "" );
+    if ( !isValidVersion( version ) ) return updateFailure( "GitHub returned an invalid MVM version.", failFast );
+
+    var binDirectory = MVM_HOME & "/bin";
+    var binaryPath = binDirectory & "/mvm" & ( isWindows() ? ".exe" : "" );
+    if ( !fileExists( binaryPath ) ) {
+        return updateFailure( "MVM executable not found at " & binaryPath & ". Re-run the installer.", failFast );
+    }
+    var installedVersion = getInstalledMvmVersion( binaryPath );
+    if ( len( installedVersion ) && compareVersions( installedVersion, version ) >= 0 ) {
+        println( "MVM is already up to date (" & installedVersion & ")." );
+        return true;
+    }
+
+    var assetUrl = findReleaseAsset( release, getPlatformAssetName( "mvm" ) );
+    if ( !len( assetUrl ) ) return updateFailure( "No MVM binary exists for this platform.", failFast );
+    var downloadPath = MVM_CACHE & "/mvm-" & version & "-" & createUUID() & ".download";
+    println( "Downloading MVM " & version & "..." );
+    var response = {};
+    try {
+        response = jsonDeserialize( http({ url: assetUrl, path: downloadPath, timeout: 180 }).get() );
+    } catch ( any e ) {
+        if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
+        return updateFailure( e.message, failFast );
+    }
+    if ( response.status != 200 || !fileExists( downloadPath ) || fileInfo( downloadPath ).size == 0 ) {
+        if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
+        return updateFailure( "Download failed (HTTP " & response.status & ").", failFast );
+    }
+
+    var error = isWindows()
+        ? scheduleMvmUpdateOnWindows( downloadPath, binDirectory )
+        : replaceMvmOnUnix( downloadPath, binaryPath );
+    if ( len( error ) ) {
+        if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
+        return updateFailure( error, failFast );
+    }
+    println( isWindows() ? "MVM " & version & " update will finish after this command exits." : "Updated MVM to " & version & "." );
+    return true;
+}
+
+function updateMvmCommand() {
+    updateMvmExecutable( githubJson( MVM_GITHUB_API & "/releases/latest" ) );
+}
+
+function checkMvmUpdateOnStartup( command ) {
+    if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update", command ) ) return;
+    var binaryPath = MVM_HOME & "/bin/mvm" & ( isWindows() ? ".exe" : "" );
+    if ( !fileExists( binaryPath ) ) return;
+    if ( fileExists( MVM_UPDATE_CHECK ) && dateDiff( "h", fileInfo( MVM_UPDATE_CHECK ).lastModified, now() ) < 24 ) return;
+    try {
+        fileWrite( MVM_UPDATE_CHECK, "checked" & chr( 10 ) );
+    } catch ( any e ) {
+        return;
+    }
+
+    var release = githubJson( MVM_GITHUB_API & "/releases/latest", false, 5 );
+    if ( !release.keyExists( "tag_name" ) ) return;
+    var latestVersion = normalizeVersion( release.tag_name );
+    var installedVersion = getInstalledMvmVersion( binaryPath );
+    var currentVersion = len( installedVersion ) ? installedVersion : MVM_VERSION;
+    if ( !isValidVersion( latestVersion ) || compareVersions( latestVersion, currentVersion ) <= 0 ) return;
+    if ( !len( findReleaseAsset( release, getPlatformAssetName( "mvm" ) ) ) ) return;
+
+    var answer = "";
+    try {
+        answer = trim( cliread( "MVM " & latestVersion & " is available. Update now? [y/N] " ) ).lCase();
+    } catch ( any e ) {
+        return;
+    }
+    if ( answer == "y" || answer == "yes" ) updateMvmExecutable( release, false );
 }
 
 function showTui() {
@@ -409,7 +584,7 @@ function showHelp() {
     println( "USAGE: mvm <command> [arguments]" );
     println( "" );
     println( "  install <version>     Install a MatchBox version" );
-    println( "  update                Install and activate the latest stable MatchBox" );
+    println( "  update                Update the MVM executable" );
     println( "  use [version]         Activate a version or read .mvmrc" );
     println( "  local [version]       Set or show the current directory's .mvmrc" );
     println( "  current               Show the active MatchBox version" );
@@ -432,6 +607,8 @@ function showHelp() {
 var cli = cligetargs();
 var args = cli.positionals;
 var command = arrayLen( args ) ? trim( args[ 1 ] ) : "";
+
+checkMvmUpdateOnStartup( command );
 
 switch ( command ) {
     case "":
@@ -464,7 +641,7 @@ switch ( command ) {
         installVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "latest", cli.options.keyExists( "force" ) && cli.options.force );
         break;
     case "update":
-        updateLatestVersion();
+        updateMvmCommand();
         break;
     case "exec":
     case "run":

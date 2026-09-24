@@ -36,7 +36,7 @@ mvm local latest
 mvm use
 ```
 
-`mvm update` installs and activates the latest stable MatchBox. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+`mvm update` updates MVM itself. In interactive terminals, MVM checks daily for a newer stable release and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
 
 ## Build and test
 
