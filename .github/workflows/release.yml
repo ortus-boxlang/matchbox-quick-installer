@@ -24,9 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TestBox 6.5 treats its runner script as a bundle on BoxLang 1.17.5.
+      # Unpin after its CLI runner filters the script path.
       - name: Set up BoxLang and CommandBox
         uses: ortus-boxlang/setup-boxlang@main
         with:
+          version: 1.16.0
           with-commandbox: true
 
       - name: Set up MatchBox
