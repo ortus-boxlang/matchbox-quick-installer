@@ -1,4 +1,4 @@
-MVM_VERSION = "0.1.3";
+MVM_VERSION = "0.1.4";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CACHE = MVM_HOME & "/cache";
@@ -388,9 +388,15 @@ function checkMvmUpdateOnStartup( command ) {
     if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update", command ) ) return;
     var binaryPath = MVM_HOME & "/bin/mvm" & ( isWindows() ? ".exe" : "" );
     if ( !fileExists( binaryPath ) ) return;
-    if ( fileExists( MVM_UPDATE_CHECK ) && dateDiff( "h", fileInfo( MVM_UPDATE_CHECK ).lastModified, now() ) < 24 ) return;
+    var nowMillis = now().getTime();
+    if ( fileExists( MVM_UPDATE_CHECK ) ) {
+        try {
+            var lastCheck = val( trim( fileRead( MVM_UPDATE_CHECK ) ) );
+            if ( lastCheck > 0 && nowMillis >= lastCheck && nowMillis - lastCheck < 86400000 ) return;
+        } catch ( any e ) {}
+    }
     try {
-        fileWrite( MVM_UPDATE_CHECK, "checked" & chr( 10 ) );
+        fileWrite( MVM_UPDATE_CHECK, nowMillis & chr( 10 ) );
     } catch ( any e ) {
         return;
     }

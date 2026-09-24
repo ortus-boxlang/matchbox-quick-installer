@@ -60,21 +60,26 @@ class extends="testbox.system.BaseSpec" {
                 var newline = createObject( "java", "java.lang.System" ).lineSeparator();
                 directoryCreate( binDirectory );
                 fileWrite( mvmBinary, "##!/bin/sh" & newline & "echo 'MVM version: 0.0.0'" & newline );
+                fileWrite( variables.mvmHome & "/update-check", "checked" );
                 var chmod = systemExecute( name="chmod", arguments=[ "+x", mvmBinary ], timeout=10 );
-                var result = systemExecute(
-                    name="/bin/sh",
-                    arguments=[ "-c", "echo n | script -qec '$MVM_BIN current' /dev/null" ],
-                    timeout=30,
-                    environment={
+                var startup = {
+                    name: "/bin/sh",
+                    arguments: [ "-c", "echo n | script -qec '$MVM_BIN current' /dev/null" ],
+                    timeout: 30,
+                    environment: {
                         MVM_HOME: variables.mvmHome,
                         MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
                         PATH: getsystemsetting( "PATH", "" )
                     }
-                );
+                };
+                var result = systemExecute( argumentCollection=startup );
+                var secondResult = systemExecute( argumentCollection=startup );
 
                 expect( chmod.exitCode ).toBe( 0 );
                 expect( result.exitCode ).toBe( 0 );
                 expect( result.output & result.error ).toInclude( "Update now? [y/N]" );
+                expect( secondResult.exitCode ).toBe( 0 );
+                expect( secondResult.output & secondResult.error ).notToInclude( "Update now? [y/N]" );
             } );
 
             it( "activates the local version and executes MatchBox", function() {
