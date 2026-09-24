@@ -6,6 +6,14 @@ MVM_CURRENT = MVM_HOME & "/current";
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
 
+function showLocalVersion() {
+    if ( !fileExists( ".mvmrc" ) ) {
+        println( "No local MatchBox version is set." );
+        return;
+    }
+    println( "Local MatchBox version: " & trim( fileRead( ".mvmrc" ) ) );
+}
+
 function showCurrent() {
     if ( !fileExists( MVM_CURRENT ) ) {
         println( "No MatchBox version is active. Run 'mvm use <version>'." );
@@ -45,6 +53,14 @@ switch ( command ) {
     case "--help":
     case "-h":
         showHelp();
+        break;
+    case "local":
+        if ( arrayLen( args ) < 2 || !len( trim( args[ 2 ] ) ) ) {
+            showLocalVersion();
+        } else {
+            fileWrite( ".mvmrc", trim( args[ 2 ] ) & chr( 10 ) );
+            println( "Local MatchBox version set to " & trim( args[ 2 ] ) );
+        }
         break;
     case "current":
         showCurrent();

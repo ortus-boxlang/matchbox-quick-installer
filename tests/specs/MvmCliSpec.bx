@@ -25,6 +25,20 @@ class extends="testbox.system.BaseSpec" {
                 expect( result.output & result.error ).toInclude( "MVM version: 0.1.0" );
             } );
 
+            it( "stores a project version in .mvmrc", function() {
+                var workingDir = getsystemsetting( "MVM_HOME", "" ) & "/test-project";
+                directoryCreate( workingDir );
+                var result = systemExecute(
+                    name=getsystemsetting( "MVM_BIN", "" ),
+                    arguments=[ "local", "0.10.1" ],
+                    directory=workingDir,
+                    timeout=30
+                );
+
+                expect( result.exitCode ).toBe( 0 );
+                expect( fileRead( workingDir & "/.mvmrc" ).trim() ).toBe( "0.10.1" );
+            } );
+
             it( "reports when no MatchBox version is active", function() {
                 var result = systemExecute(
                     name=getsystemsetting( "MVM_BIN", "" ),
