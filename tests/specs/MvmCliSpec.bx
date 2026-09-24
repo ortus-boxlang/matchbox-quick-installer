@@ -45,6 +45,9 @@ class extends="testbox.system.BaseSpec" {
                 var current = runMvm( [ "current" ] );
                 var list = runMvm( [ "list" ] );
                 var execution = runMvm( [ "exec", "--version" ] );
+                var removed = runMvm( [ "remove", versions[ 1 ] ] );
+                var currentAfterRemove = runMvm( [ "current" ] );
+                var listAfterRemove = runMvm( [ "list" ] );
 
                 expect( use.exitCode ).toBe( 0 );
                 expect( use.output ).toInclude( "Now using MatchBox " & versions[ 1 ] );
@@ -52,6 +55,9 @@ class extends="testbox.system.BaseSpec" {
                 expect( list.output ).toInclude( "(current)" );
                 expect( execution.exitCode ).toBe( 0 );
                 expect( execution.output & execution.error ).toInclude( versions[ 1 ] );
+                expect( removed.output & removed.error ).toInclude( "removed" );
+                expect( currentAfterRemove.output ).toInclude( "No MatchBox version is active" );
+                expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );
             } );
 
             it( "defaults to .mvm under the user's home directory", function() {

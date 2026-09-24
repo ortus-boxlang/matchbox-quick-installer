@@ -198,6 +198,22 @@ function useVersion( version ) {
     println( "Now using MatchBox " & version );
 }
 
+function removeVersion( version ) {
+    version = normalizeVersion( trim( version ) );
+    if ( !isValidVersion( version ) ) {
+        println( "Specify a valid MatchBox version to remove." );
+        cliexit( 1 );
+    }
+    var versionDir = MVM_VERSIONS & "/" & version;
+    if ( !directoryExists( versionDir ) ) {
+        println( "MatchBox " & version & " is not installed." );
+        return;
+    }
+    if ( getCurrentVersion() == version && fileExists( MVM_CURRENT ) ) fileDelete( MVM_CURRENT );
+    directoryDelete( versionDir, true );
+    println( "MatchBox " & version & " removed." );
+}
+
 function listInstalledVersions() {
     var installed = directoryList( MVM_VERSIONS, false, "name" );
     if ( !arrayLen( installed ) ) {
@@ -312,6 +328,10 @@ switch ( command ) {
     case "exec":
     case "run":
         execCurrentVersion( getForwardedArgs( args ), cli.options );
+        break;
+    case "remove":
+    case "uninstall":
+        removeVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "" );
         break;
     case "list-remote":
         listRemoteVersions();
