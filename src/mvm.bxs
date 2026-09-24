@@ -2,9 +2,84 @@ MVM_VERSION = "0.1.0";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CURRENT = MVM_HOME & "/current";
+MATCHBOX_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
+
+function githubJson( url ) {
+    var response = {};
+    try {
+        response = jsonDeserialize( http({
+            url: url,
+            headers: { "User-Agent": "MVM" },
+            timeout: 30
+        }).get() );
+    } catch ( any e ) {
+        println( "Could not contact GitHub: " & e.message );
+        cliexit( 1 );
+    }
+    if ( response.status != 200 ) {
+        println( "GitHub request failed with HTTP " & response.status );
+        cliexit( 1 );
+    }
+    return jsonDeserialize( response.body );
+}
+
+function getPlatformAssetName() {
+    var windows = getsystemsetting( "OS", "" ).lCase() contains "windows";
+    var os = "";
+    if ( windows ) {
+        os = "windows";
+    } else {
+        var osResult = systemExecute( "uname", [ "-s" ], 10 );
+        var osName = trim( osResult.output ).lCase();
+        if ( osName contains "linux" ) os = "linux";
+        if ( osName contains "darwin" ) os = "macos";
+        if ( !len( os ) ) {
+            println( "Unsupported operating system: " & osName );
+            cliexit( 1 );
+        }
+    }
+
+    var arch = windows
+        ? getsystemsetting( "PROCESSOR_ARCHITECTURE", "x64" ).lCase()
+        : trim( systemExecute( "uname", [ "-m" ], 10 ).output ).lCase();
+    if ( arch == "x86_64" || arch == "amd64" || arch == "x64" ) arch = "x64";
+    else if ( arch == "aarch64" || arch == "arm64" ) arch = "arm64";
+    else if ( arch == "i386" || arch == "i686" || arch == "x86" ) arch = "x86";
+    else if ( arch.startsWith( "armv7" ) ) arch = "armv7";
+    else {
+        println( "Unsupported architecture: " & arch );
+        cliexit( 1 );
+    }
+    return "matchbox-" & os & "-" & arch & ( windows ? ".exe" : "" );
+}
+
+function normalizeVersion( version ) {
+    version = trim( version );
+    return version.startsWith( "v" ) ? listLast( version, "v" ) : version;
+}
+
+function listRemoteVersions() {
+    var releases = githubJson( MATCHBOX_GITHUB_API & "/releases?per_page=100" );
+    var assetName = getPlatformAssetName();
+    var latestShown = false;
+    println( "Available MatchBox versions:" );
+    for ( release in releases ) {
+        var version = normalizeVersion( release.tag_name );
+        if ( !isValidVersion( version ) ) continue;
+        var hasAsset = false;
+        for ( asset in release.assets ) {
+            if ( asset.name == assetName ) hasAsset = true;
+        }
+        if ( hasAsset ) {
+            var suffix = release.prerelease ? " (pre-release)" : ( !latestShown ? " (latest)" : "" );
+            println( "  " & version & suffix );
+            if ( !release.prerelease ) latestShown = true;
+        }
+    }
+}
 
 function isValidVersion( version ) {
     return reFind( "^[A-Za-z0-9][A-Za-z0-9.+_-]*$", version ) == 1;
@@ -91,6 +166,9 @@ switch ( command ) {
         break;
     case "current":
         showCurrent();
+        break;
+    case "list-remote":
+        listRemoteVersions();
         break;
     case "version":
         println( "MVM version: " & MVM_VERSION );
