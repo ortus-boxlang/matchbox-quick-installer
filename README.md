@@ -50,4 +50,4 @@ The integration suite needs MatchBox, CommandBox (to install TestBox on first ru
 
 ## Releases
 
-Push a `v*` tag to build native MVM executables for Linux, macOS, and Windows and attach them to the GitHub release. The quick-install scripts download the latest release.
+Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `main` publishes a stable release using the version in `box.json` (bump it for each release); `development` replaces the `snapshot` prerelease. Quick installers download the latest stable release.
