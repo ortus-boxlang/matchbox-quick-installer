@@ -90,6 +90,13 @@ class extends="testbox.system.BaseSpec" {
                 expect( output ).toInclude( "tui" );
             } );
 
+            it( "rejects unknown commands", function() {
+                var result = runMvm( [ "not-a-command" ] );
+
+                expect( result.exitCode ).toBe( 1 );
+                expect( result.output & result.error ).toInclude( "Unknown command" );
+            } );
+
             it( "prints the MVM application version", function() {
                 var result = runMvm( [ "version" ] );
                 expect( result.output & result.error ).toInclude( "MVM version: 0.1.0" );

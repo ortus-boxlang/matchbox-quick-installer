@@ -386,5 +386,6 @@ switch ( command ) {
         listInstalledVersions();
         break;
     default:
-        println( "MVM" );
+        println( "Unknown command: " & command & ". Run 'mvm help' for usage." );
+        cliexit( 1 );
 }
