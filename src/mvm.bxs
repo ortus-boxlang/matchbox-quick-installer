@@ -1,1 +1,23 @@
-println( "MVM" );
+MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "user.home", "~" ) & "/.mvm" );
+MVM_VERSIONS = MVM_HOME & "/versions";
+
+if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
+if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
+
+var cli = cligetargs();
+var args = cli.positionals;
+var command = arrayLen( args ) ? trim( args[ 1 ] ) : "";
+
+switch ( command ) {
+    case "list":
+    case "ls":
+        var versions = directoryList( MVM_VERSIONS, false, "name" );
+        if ( !arrayLen( versions ) ) {
+            println( "No MatchBox versions installed. Run 'mvm install latest' to get started." );
+        } else {
+            for ( version in versions ) println( version );
+        }
+        break;
+    default:
+        println( "MVM" );
+}
