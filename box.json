@@ -1,0 +1,24 @@
+{
+    "name": "matchbox-version-manager",
+    "version": "0.1.0",
+    "description": "A MatchBox version manager",
+    "license": "Apache-2.0",
+    "testbox": {
+        "runner": {
+            "default": "tests/runner.bxs"
+        },
+        "coverage": {
+            "enabled": false
+        }
+    },
+    "scripts": {
+        "test": "./tests/integration/run.sh",
+        "build": "matchbox --target native --output build/mvm src/mvm.bxs"
+    },
+    "devDependencies": {
+        "testbox": "^6.0.0"
+    },
+    "installPaths": {
+        "testbox": "testbox/"
+    }
+}
