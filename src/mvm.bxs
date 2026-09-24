@@ -115,6 +115,10 @@ function findReleaseAsset( release, assetName ) {
 function installVersion( requestedVersion, force=false ) {
     var release = getReleaseInfo( len( trim( requestedVersion ) ) ? requestedVersion : "latest" );
     var version = normalizeVersion( release.tag_name );
+    if ( !isValidVersion( version ) ) {
+        println( "GitHub returned an invalid MatchBox version: " & version );
+        cliexit( 1 );
+    }
     var versionDir = MVM_VERSIONS & "/" & version;
     if ( directoryExists( versionDir ) && !force ) {
         println( "MatchBox " & version & " is already installed. Use --force to reinstall." );

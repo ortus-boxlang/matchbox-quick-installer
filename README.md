@@ -1,0 +1,53 @@
+# MatchBox Version Manager (MVM)
+
+MVM installs and runs MatchBox releases side by side. It stores versions under `~/.mvm` by default (`MVM_HOME` overrides this).
+
+## Install
+
+Linux and macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/mvm/main/install/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ortus-boxlang/mvm/main/install/install.ps1 | iex
+```
+
+The installer adds MVM to your user PATH. Restart your shell afterward.
+
+## Use
+
+```sh
+mvm install latest
+mvm list
+mvm use latest
+mvm exec --version
+mvm tui
+```
+
+Set a project version in `.mvmrc` and activate it with `mvm use`:
+
+```sh
+mvm local latest
+mvm use
+```
+
+Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+
+## Build and test
+
+Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:
+
+```sh
+./build.sh
+./tests/integration/run.sh
+```
+
+The integration suite uses TestBox and accesses real GitHub releases, so the first run needs CommandBox (to install TestBox) and network access.
+
+## Releases
+
+Push a `v*` tag to build native MVM executables for Linux, macOS, and Windows and attach them to the GitHub release. The quick-install scripts download the latest release.

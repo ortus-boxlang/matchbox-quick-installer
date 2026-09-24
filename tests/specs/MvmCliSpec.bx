@@ -25,11 +25,14 @@ class extends="testbox.system.BaseSpec" {
             it( "installs the latest MatchBox release", function() {
                 var result = runMvm( [ "install", "latest" ] );
                 var installed = runMvm( [ "list" ] );
+                var versions = reMatchNoCase( "[0-9]+[.][0-9]+[.][0-9]+", installed.output );
+                var exactInstall = runMvm( [ "install", versions[ 1 ] ] );
 
                 expect( result.exitCode ).toBe( 0 );
                 expect( result.output & result.error ).toInclude( "installed" );
                 expect( installed.output ).notToInclude( "No MatchBox versions installed" );
-                expect( reFindNoCase( "[0-9]+[.][0-9]+[.][0-9]+", installed.output ) ).toBeGT( 0 );
+                expect( arrayLen( versions ) ).toBeGT( 0 );
+                expect( exactInstall.output & exactInstall.error ).toInclude( "already installed" );
             } );
 
             it( "activates the local version and executes MatchBox", function() {

@@ -5,7 +5,7 @@
     "license": "Apache-2.0",
     "scripts": {
         "test": "./tests/integration/run.sh",
-        "build": "matchbox --target native --output build/mvm src/mvm.bxs"
+        "build": "./build.sh"
     },
     "devDependencies": {
         "testbox": "^6.0.0"

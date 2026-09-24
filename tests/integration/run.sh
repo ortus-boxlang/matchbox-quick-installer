@@ -2,17 +2,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MATCHBOX_BIN="${MATCHBOX_BIN:-}"
-if [[ -z "$MATCHBOX_BIN" && -x "$ROOT/../matchbox/target/release/matchbox" ]]; then
-    MATCHBOX_BIN="$ROOT/../matchbox/target/release/matchbox"
-fi
-MATCHBOX_BIN="${MATCHBOX_BIN:-$(command -v matchbox)}"
 REPORT_DIR="$ROOT/build/test-results"
 
 cd "$ROOT"
-mkdir -p build
-"$MATCHBOX_BIN" --target native --output build/mvm src/mvm.bxs
-chmod +x build/mvm
+if [[ ! -x "$ROOT/testbox/run" ]]; then
+    if ! command -v box >/dev/null 2>&1; then
+        echo "TestBox is missing. Install CommandBox, then run 'box install'." >&2
+        exit 1
+    fi
+    box install
+fi
+./build.sh
 rm -rf "$REPORT_DIR"
 MVM_BIN="$ROOT/build/mvm" ./testbox/run \
     --directory=tests.specs \
