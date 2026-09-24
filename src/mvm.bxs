@@ -1,4 +1,4 @@
-MVM_VERSION = "0.1.0";
+MVM_VERSION = "0.1.1";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CACHE = MVM_HOME & "/cache";
@@ -181,6 +181,30 @@ function getCurrentVersion() {
     return isValidVersion( version ) ? version : "";
 }
 
+function createMatchboxShim() {
+    var binDirectory = MVM_HOME & "/bin";
+    if ( !directoryExists( binDirectory ) ) directoryCreate( binDirectory );
+
+    if ( isWindows() ) {
+        fileWrite(
+            binDirectory & "/matchbox.cmd",
+            "@echo off" & chr( 13 ) & chr( 10 ) &
+            "set /p MVM_VERSION=<" & chr( 34 ) & "%~dp0..\current" & chr( 34 ) & chr( 13 ) & chr( 10 ) &
+            chr( 34 ) & "%~dp0..\versions\%MVM_VERSION%\bin\matchbox.exe" & chr( 34 ) & " %*" & chr( 13 ) & chr( 10 )
+        );
+        return;
+    }
+
+    fileWrite(
+        binDirectory & "/matchbox",
+        '#!/bin/sh' & chr( 10 ) &
+        'MVM_HOME=$(cd "$(dirname "$0")/.." && pwd)' & chr( 10 ) &
+        'VERSION=$(cat "$MVM_HOME/current") || exit 1' & chr( 10 ) &
+        'exec "$MVM_HOME/versions/$VERSION/bin/matchbox" "$@"' & chr( 10 )
+    );
+    fileSetExecutable( binDirectory & "/matchbox" );
+}
+
 function useVersion( version ) {
     version = trim( version );
     if ( !len( version ) && fileExists( ".mvmrc" ) ) {
@@ -202,6 +226,7 @@ function useVersion( version ) {
     }
 
     fileWrite( MVM_CURRENT, version & chr( 10 ) );
+    createMatchboxShim();
     println( "Now using MatchBox " & version );
 }
 

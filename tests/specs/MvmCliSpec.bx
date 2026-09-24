@@ -48,6 +48,14 @@ class extends="testbox.system.BaseSpec" {
                 var current = runMvm( [ "current" ] );
                 var list = runMvm( [ "list" ] );
                 var execution = runMvm( [ "exec", "--version" ] );
+                var windowsPlatform = getsystemsetting( "OS", "" ).lCase().contains( "windows" );
+                var matchbox = windowsPlatform
+                    ? systemExecute( name="cmd", arguments=[ "/c", "matchbox --version" ], timeout=30 )
+                    : systemExecute(
+                        name="/bin/sh",
+                        arguments=[ "-c", 'PATH="' & variables.mvmHome & '/bin:$PATH" matchbox --version' ],
+                        timeout=30
+                    );
                 var removed = runMvm( [ "remove", versions[ 1 ] ] );
                 var currentAfterRemove = runMvm( [ "current" ] );
                 var listAfterRemove = runMvm( [ "list" ] );
@@ -58,6 +66,8 @@ class extends="testbox.system.BaseSpec" {
                 expect( list.output ).toInclude( "(current)" );
                 expect( execution.exitCode ).toBe( 0 );
                 expect( execution.output & execution.error ).toInclude( versions[ 1 ] );
+                expect( matchbox.exitCode ).toBe( 0 );
+                expect( matchbox.output & matchbox.error ).toInclude( versions[ 1 ] );
                 expect( removed.output & removed.error ).toInclude( "removed" );
                 expect( currentAfterRemove.output ).toInclude( "No MatchBox version is active" );
                 expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );
@@ -102,7 +112,7 @@ class extends="testbox.system.BaseSpec" {
 
             it( "prints the MVM application version", function() {
                 var result = runMvm( [ "version" ] );
-                expect( result.output & result.error ).toInclude( "MVM version: 0.1.0" );
+                expect( result.output & result.error ).toInclude( "MVM version: 0.1.1" );
             } );
 
             it( "stores a project version in .mvmrc", function() {

@@ -24,6 +24,7 @@ The installer adds MVM to your user PATH. Restart your shell afterward.
 mvm install latest
 mvm list
 mvm use latest
+matchbox --version
 mvm exec --version
 mvm tui
 ```
