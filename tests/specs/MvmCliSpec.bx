@@ -1,0 +1,23 @@
+class extends="testbox.system.BaseSpec" {
+
+    function run() {
+        describe( "MVM CLI", function() {
+            it( "reports an empty install when MVM_HOME has no versions", function() {
+                var home = getsystemsetting( "MVM_HOME", "" );
+                var binary = getsystemsetting( "MVM_BIN", "" );
+
+                expect( len( home ) ).toBeGT( 0 );
+                expect( len( binary ) ).toBeGT( 0 );
+
+                var result = systemExecute(
+                    name=binary,
+                    arguments=[ "list" ],
+                    timeout=30
+                );
+
+                expect( result.output & result.error ).toInclude( "No MatchBox versions installed" );
+                expect( directoryExists( home & "/versions" ) ).toBeTrue();
+            } );
+        } );
+    }
+}

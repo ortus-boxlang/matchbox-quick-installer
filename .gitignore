@@ -1,3 +1,4 @@
 build/
 testbox/
 modules/
+tests/results/
