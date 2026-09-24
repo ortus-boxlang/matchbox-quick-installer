@@ -46,7 +46,7 @@ Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:
 ./tests/integration/run.sh
 ```
 
-The integration suite uses TestBox and accesses real GitHub releases, so the first run needs CommandBox (to install TestBox) and network access.
+The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases.
 
 ## Releases
 
