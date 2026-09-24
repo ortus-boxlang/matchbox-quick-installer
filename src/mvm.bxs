@@ -37,6 +37,9 @@ switch ( command ) {
     case "-h":
         showHelp();
         break;
+    case "version":
+        println( "MVM version: " & MVM_VERSION );
+        break;
     case "list":
     case "ls":
         var versions = directoryList( MVM_VERSIONS, false, "name" );

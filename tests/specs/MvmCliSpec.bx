@@ -15,6 +15,16 @@ class extends="testbox.system.BaseSpec" {
                 expect( output ).toInclude( "tui" );
             } );
 
+            it( "prints the MVM application version", function() {
+                var result = systemExecute(
+                    name=getsystemsetting( "MVM_BIN", "" ),
+                    arguments=[ "version" ],
+                    timeout=30
+                );
+
+                expect( result.output & result.error ).toInclude( "MVM version: 0.1.0" );
+            } );
+
             it( "reports an empty install when MVM_HOME has no versions", function() {
                 var home = getsystemsetting( "MVM_HOME", "" );
                 var binary = getsystemsetting( "MVM_BIN", "" );
