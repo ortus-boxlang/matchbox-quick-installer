@@ -1,4 +1,6 @@
-MVM_VERSION = "0.1.4";
+MVM_VERSION = "2.0.0-snapshot";
+MVM_COMMIT = "unknown";
+MVM_BUILT_ON = "unknown";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CACHE = MVM_HOME & "/cache";
@@ -129,6 +131,38 @@ function getInstalledMvmVersion( binaryPath ) {
     } catch ( any e ) {
         return "";
     }
+}
+
+function getInstalledMvmCommit( binaryPath ) {
+    if ( !fileExists( binaryPath ) ) return "";
+    try {
+        var result = systemExecute( binaryPath, [ "version" ], 10 );
+        var commits = reMatchNoCase( "Commit: [0-9a-f]{7,40}", result.output & result.error );
+        return result.exitCode == 0 && arrayLen( commits ) ? listLast( commits[ 1 ], " " ).lCase() : "";
+    } catch ( any e ) {
+        return "";
+    }
+}
+
+function getMvmReleaseCommit( release ) {
+    var commits = reMatchNoCase( "Commit: [0-9a-f]{7,40}", release.body ?: "" );
+    return arrayLen( commits ) ? listLast( commits[ 1 ], " " ).lCase() : "";
+}
+
+function getLatestMvmRelease( failFast=true ) {
+    if ( right( MVM_VERSION, 9 ) == "-snapshot" ) {
+        var releases = githubJson( MVM_GITHUB_API & "/releases?per_page=100", false, failFast ? 30 : 5 );
+        var latestSnapshot = {};
+        if ( isArray( releases ) ) {
+            for ( release in releases ) {
+                var candidate = normalizeVersion( release.tag_name ?: "" );
+                if ( !release.prerelease || right( candidate, 9 ) != "-snapshot" || !isValidVersion( candidate ) ) continue;
+                if ( !latestSnapshot.keyExists( "tag_name" ) || compareVersions( candidate, normalizeVersion( latestSnapshot.tag_name ) ) > 0 ) latestSnapshot = release;
+            }
+        }
+        if ( latestSnapshot.keyExists( "tag_name" ) ) return latestSnapshot;
+    }
+    return githubJson( MVM_GITHUB_API & "/releases/latest", failFast, failFast ? 30 : 5 );
 }
 
 function getReleaseInfo( version ) {
@@ -348,9 +382,21 @@ function updateMvmExecutable( release, failFast=true ) {
         return updateFailure( "MVM executable not found at " & binaryPath & ". Re-run the installer.", failFast );
     }
     var installedVersion = getInstalledMvmVersion( binaryPath );
-    if ( len( installedVersion ) && compareVersions( installedVersion, version ) >= 0 ) {
-        println( "MVM is already up to date (" & installedVersion & ")." );
-        return true;
+    if ( len( installedVersion ) ) {
+        var versionOrder = compareVersions( installedVersion, version );
+        var upToDate = versionOrder > 0;
+        if ( versionOrder == 0 ) {
+            if ( installedVersion == version && right( version, 9 ) == "-snapshot" ) {
+                var releaseCommit = getMvmReleaseCommit( release );
+                upToDate = !len( releaseCommit ) || getInstalledMvmCommit( binaryPath ) == releaseCommit;
+            } else {
+                upToDate = installedVersion == version;
+            }
+        }
+        if ( upToDate ) {
+            println( "MVM is already up to date (" & installedVersion & ")." );
+            return true;
+        }
     }
 
     var assetUrl = findReleaseAsset( release, getPlatformAssetName( "mvm" ) );
@@ -381,7 +427,7 @@ function updateMvmExecutable( release, failFast=true ) {
 }
 
 function updateMvmCommand() {
-    updateMvmExecutable( githubJson( MVM_GITHUB_API & "/releases/latest" ) );
+    updateMvmExecutable( getLatestMvmRelease() );
 }
 
 function checkMvmUpdateOnStartup( command ) {
@@ -401,13 +447,19 @@ function checkMvmUpdateOnStartup( command ) {
         return;
     }
 
-    var release = githubJson( MVM_GITHUB_API & "/releases/latest", false, 5 );
+    var release = getLatestMvmRelease( false );
     if ( !release.keyExists( "tag_name" ) ) return;
     var latestVersion = normalizeVersion( release.tag_name );
     var installedVersion = getInstalledMvmVersion( binaryPath );
     var currentVersion = len( installedVersion ) ? installedVersion : MVM_VERSION;
-    if ( !isValidVersion( latestVersion ) || compareVersions( latestVersion, currentVersion ) <= 0 ) return;
-    if ( !len( findReleaseAsset( release, getPlatformAssetName( "mvm" ) ) ) ) return;
+    if ( !isValidVersion( latestVersion ) ) return;
+    var versionOrder = compareVersions( latestVersion, currentVersion );
+    var updateAvailable = versionOrder > 0 || ( versionOrder == 0 && latestVersion != currentVersion );
+    if ( versionOrder == 0 && latestVersion == currentVersion && right( latestVersion, 9 ) == "-snapshot" ) {
+        var latestCommit = getMvmReleaseCommit( release );
+        updateAvailable = len( latestCommit ) && getInstalledMvmCommit( binaryPath ) != latestCommit;
+    }
+    if ( !updateAvailable || !len( findReleaseAsset( release, getPlatformAssetName( "mvm" ) ) ) ) return;
 
     var answer = "";
     try {
@@ -784,6 +836,8 @@ switch ( command ) {
         break;
     case "version":
         println( "MVM version: " & MVM_VERSION );
+        println( "Commit: " & MVM_COMMIT );
+        println( "Built on: " & MVM_BUILT_ON );
         break;
     case "completion":
         if ( arrayLen( args ) < 2 || args[ 2 ].lCase() != "bash" ) {

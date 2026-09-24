@@ -16,6 +16,8 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.ps1 | iex
 ```
 
+The installer defaults to the latest stable release. Set `MVM_VERSION` to an exact version to install a snapshot instead, for example `curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | MVM_VERSION=2.0.0-snapshot bash`.
+
 The installer adds MVM to your user PATH and registers Bash completions for commands and installed versions. On macOS it also connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` from Bash on Linux/macOS to install or refresh completions and repair profile registration.
 
 ## Use
@@ -36,7 +38,7 @@ mvm local latest
 mvm use
 ```
 
-`mvm update` updates MVM itself. In interactive terminals, MVM checks daily for a newer stable release and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation, and reports Bash completion status when run from Bash. `mvm doctor --fix` repairs Bash completion setup. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+`mvm update` updates MVM itself (stable builds track stable releases; snapshot builds track snapshots). `mvm version` shows the version, source commit, and UTC build time. In interactive terminals, MVM checks daily for a newer release in its channel and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation, and reports Bash completion status when run from Bash. `mvm doctor --fix` repairs Bash completion setup. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
 
 ## Build and test
 
@@ -51,4 +53,4 @@ The integration suite needs MatchBox, CommandBox (to install TestBox on first ru
 
 ## Releases
 
-Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `main` publishes a stable release using the version in `box.json` (bump it for each release); `development` replaces the `snapshot` prerelease. Quick installers download the latest stable release.
+Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `development` uses the next version with a `-snapshot` suffix and updates that versioned prerelease on each push. `main` strips the suffix and publishes the stable version (for example, `2.0.0-snapshot` becomes `v2.0.0`). Bump the development version for the next release cycle. Builds include their commit and UTC build time; installers select latest stable by default, or an exact version via `MVM_VERSION`.

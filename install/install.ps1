@@ -10,7 +10,16 @@ $assetArchitecture = if ($architecture -eq "Arm64") { "arm64" } else { "x64" }
 $installDir = Join-Path $mvmHome "bin"
 $binary = Join-Path $installDir "mvm.exe"
 $tempBinary = Join-Path $installDir "mvm.exe.download"
-$url = "https://github.com/$repository/releases/latest/download/mvm-windows-$assetArchitecture.exe"
+$releaseVersion = if ($env:MVM_VERSION) { $env:MVM_VERSION } else { "latest" }
+if ($releaseVersion -eq "latest") {
+    $url = "https://github.com/$repository/releases/latest/download/mvm-windows-$assetArchitecture.exe"
+} else {
+    if ($releaseVersion.StartsWith("v")) { $releaseVersion = $releaseVersion.Substring(1) }
+    if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?$') {
+        throw "Invalid MVM version: $releaseVersion"
+    }
+    $url = "https://github.com/$repository/releases/download/v$releaseVersion/mvm-windows-$assetArchitecture.exe"
+}
 
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 try {

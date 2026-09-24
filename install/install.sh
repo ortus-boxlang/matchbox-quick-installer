@@ -24,7 +24,17 @@ INSTALL_DIR="$MVM_HOME/bin"
 BINARY="$INSTALL_DIR/mvm"
 TEMP_BINARY="$(mktemp "$INSTALL_DIR/.mvm.XXXXXX")"
 trap 'rm -f "$TEMP_BINARY"' EXIT
-URL="https://github.com/$REPOSITORY/releases/latest/download/mvm-$PLATFORM-$ARCH"
+RELEASE_VERSION="${MVM_VERSION:-latest}"
+if [[ "$RELEASE_VERSION" == "latest" ]]; then
+    URL="https://github.com/$REPOSITORY/releases/latest/download/mvm-$PLATFORM-$ARCH"
+else
+    RELEASE_VERSION="${RELEASE_VERSION#v}"
+    if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?$ ]]; then
+        echo "Invalid MVM version: $RELEASE_VERSION" >&2
+        exit 1
+    fi
+    URL="https://github.com/$REPOSITORY/releases/download/v$RELEASE_VERSION/mvm-$PLATFORM-$ARCH"
+fi
 
 curl -fsSL "$URL" -o "$TEMP_BINARY"
 chmod +x "$TEMP_BINARY"

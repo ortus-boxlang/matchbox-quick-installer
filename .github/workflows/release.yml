@@ -76,18 +76,22 @@ jobs:
         env:
           MVM_PLATFORM: ${{ matrix.platform }}
         run: |
+          VERSION="$(grep -m1 '"version"' box.json | cut -d '"' -f 4)"
+          VERSION="${VERSION%-snapshot}"
+          if [[ "$SNAPSHOT" == "true" ]]; then MVM_VERSION="${VERSION}-snapshot"; else MVM_VERSION="$VERSION"; fi
           MATCHBOX_BIN=matchbox
           MVM_EXE=""
           if [[ "$RUNNER_OS" == "Windows" ]]; then
               MATCHBOX_BIN=matchbox.exe
               MVM_EXE=.exe
           fi
-          mkdir -p build release-assets
-          MVM_VERSION="$(grep -m1 '"version"' box.json | cut -d '"' -f 4)"
-          if [[ "$SNAPSHOT" == "true" ]]; then MVM_VERSION="${MVM_VERSION}-snapshot"; fi
-          sed "s/^MVM_VERSION = .*/MVM_VERSION = \"$MVM_VERSION\";/" src/mvm.bxs > build/mvm.bxs
-          "$MATCHBOX_BIN" --target native --output "build/mvm-$MVM_PLATFORM$MVM_EXE" build/mvm.bxs
-          if [[ "$RUNNER_OS" != "Windows" ]]; then chmod +x "build/mvm-$MVM_PLATFORM"; fi
+          mkdir -p release-assets
+          MVM_OUTPUT="build/mvm-$MVM_PLATFORM$MVM_EXE" \
+          MVM_VERSION="$MVM_VERSION" \
+          MVM_COMMIT="$GITHUB_SHA" \
+          MVM_BUILT_ON="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+          MATCHBOX_BIN="$MATCHBOX_BIN" \
+          ./build.sh
           cp "build/mvm-$MVM_PLATFORM$MVM_EXE" "release-assets/mvm-$MVM_PLATFORM$MVM_EXE"
           "release-assets/mvm-$MVM_PLATFORM$MVM_EXE" version
 
@@ -100,6 +104,7 @@ jobs:
 
   publish:
     name: Publish release or snapshot
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
     needs: [test, build]
     runs-on: ubuntu-latest
     permissions:
@@ -109,7 +114,11 @@ jobs:
 
       - name: Read MVM version
         id: version
-        run: echo "version=$(grep -m1 '"version"' box.json | cut -d '"' -f 4)" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(grep -m1 '"version"' box.json | cut -d '"' -f 4)"
+          version="${version%-snapshot}"
+          if [[ "$SNAPSHOT" == "true" ]]; then version="${version}-snapshot"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
         with:
@@ -117,21 +126,21 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Update snapshot tag
+      - name: Update snapshot version tag
         if: env.SNAPSHOT == 'true'
         uses: rickstaa/action-create-tag@v1.7.2
         with:
-          tag: snapshot
+          tag: ${{ format('v{0}', steps.version.outputs.version) }}
           force_push_tag: true
           message: MVM development snapshot
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.SNAPSHOT == 'true' && 'snapshot' || format('v{0}', steps.version.outputs.version) }}
+          tag_name: ${{ format('v{0}', steps.version.outputs.version) }}
           target_commitish: ${{ github.sha }}
-          name: ${{ env.SNAPSHOT == 'true' && 'MVM Snapshot' || format('MVM {0}', steps.version.outputs.version) }}
-          body: ${{ env.SNAPSHOT == 'true' && format('Development snapshot from {0}', github.sha) || '' }}
+          name: ${{ format('MVM v{0}', steps.version.outputs.version) }}
+          body: "${{ env.SNAPSHOT == 'true' && format('Commit: {0}', github.sha) || '' }}"
           prerelease: ${{ env.SNAPSHOT == 'true' }}
           make_latest: ${{ env.SNAPSHOT == 'true' && 'false' || 'true' }}
           overwrite_files: true

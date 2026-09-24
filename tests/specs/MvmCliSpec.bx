@@ -35,7 +35,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( exactInstall.output & exactInstall.error ).toInclude( "already installed" );
             } );
 
-            it( "updates the MVM executable from the latest release", function() {
+            it( "updates the MVM executable from the latest channel release", function() {
                 var binDirectory = variables.mvmHome & "/bin";
                 var mvmBinary = binDirectory & "/mvm";
                 directoryCreate( binDirectory );
@@ -80,6 +80,8 @@ class extends="testbox.system.BaseSpec" {
                 var userHome = variables.mvmHome & "/user";
                 var fakeBin = variables.mvmHome & "/fake-bin";
                 var mvmHome = userHome & "/custom-mvm";
+                var requestedVersion = "2.3.4-snapshot";
+                var curlLog = userHome & "/curl.log";
                 var curlScript = fakeBin & "/curl";
                 var unameScript = fakeBin & "/uname";
                 var newline = createObject( "java", "java.lang.System" ).lineSeparator();
@@ -87,6 +89,7 @@ class extends="testbox.system.BaseSpec" {
                 directoryCreate( fakeBin );
                 fileWrite( curlScript,
                     "##!/bin/sh" & newline &
+                    "echo $2 > $MVM_CURL_LOG" & newline &
                     "while [ $## -gt 0 ]; do" & newline &
                     "  if [ $1 = -o ]; then shift; output=$1; fi" & newline &
                     "  shift" & newline &
@@ -107,6 +110,8 @@ class extends="testbox.system.BaseSpec" {
                         HOME: userHome,
                         MVM_HOME: mvmHome,
                         MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
+                        MVM_CURL_LOG: curlLog,
+                        MVM_VERSION: requestedVersion,
                         SHELL: "/bin/bash",
                         PATH: fakeBin & ":" & getsystemsetting( "PATH", "" )
                     }
@@ -127,6 +132,8 @@ class extends="testbox.system.BaseSpec" {
                         HOME: macUserHome,
                         MVM_HOME: macMvmHome,
                         MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
+                        MVM_CURL_LOG: macUserHome & "/curl.log",
+                        MVM_VERSION: requestedVersion,
                         MVM_TEST_OS: "Darwin",
                         SHELL: "/bin/bash",
                         PATH: fakeBin & ":" & getsystemsetting( "PATH", "" )
@@ -150,6 +157,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( repeatedInstall.exitCode ).toBe( 0 );
                 expect( fileExists( completionFile ) ).toBeTrue();
                 expect( fileRead( completionFile ) ).toInclude( "complete -o default -F _mvm_completions mvm" );
+                expect( fileRead( curlLog ) ).toInclude( "/releases/download/v" & requestedVersion & "/mvm-linux-x64" );
                 expect( arrayLen( completionMarkers ) ).toBe( 1 );
                 expect( macInstaller.exitCode ).toBe( 0 );
                 expect( macRepeatInstall.exitCode ).toBe( 0 );
@@ -344,11 +352,12 @@ class extends="testbox.system.BaseSpec" {
                 expect( result.output & result.error ).toInclude( "Unknown command" );
             } );
 
-            it( "prints the MVM application version", function() {
+            it( "prints the MVM version, commit, and build date", function() {
                 var result = runMvm( [ "version" ] );
-                expect(
-                    reFindNoCase( "^MVM version: [0-9]+[.][0-9]+[.][0-9]+(-[A-Za-z0-9.-]+)?$", trim( result.output & result.error ) )
-                ).toBeGT( 0 );
+                var output = result.output & result.error;
+                expect( reFindNoCase( "MVM version: [0-9]+[.][0-9]+[.][0-9]+(-[A-Za-z0-9.-]+)?", output ) ).toBeGT( 0 );
+                expect( reFindNoCase( "Commit: [0-9a-f]{7,40}", output ) ).toBeGT( 0 );
+                expect( reFindNoCase( "Built on: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", output ) ).toBeGT( 0 );
             } );
 
             it( "stores a project version in .mvmrc", function() {
