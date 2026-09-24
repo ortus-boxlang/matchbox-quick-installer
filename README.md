@@ -16,7 +16,7 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.ps1 | iex
 ```
 
-The installer adds MVM to your user PATH. Restart your shell afterward.
+The installer adds MVM to your user PATH and registers Bash completions for commands and installed versions. On macOS it also connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` from Bash on Linux/macOS to install or refresh completions and repair profile registration.
 
 ## Use
 
@@ -36,7 +36,7 @@ mvm local latest
 mvm use
 ```
 
-`mvm update` updates MVM itself. In interactive terminals, MVM checks daily for a newer stable release and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+`mvm update` updates MVM itself. In interactive terminals, MVM checks daily for a newer stable release and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH and the active installation, and reports Bash completion status when run from Bash. `mvm doctor --fix` repairs Bash completion setup. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
 
 ## Build and test
 

@@ -19,6 +19,7 @@ esac
 
 mkdir -p "$MVM_HOME/bin"
 MVM_HOME="$(cd "$MVM_HOME" && pwd)"
+export MVM_HOME
 INSTALL_DIR="$MVM_HOME/bin"
 BINARY="$INSTALL_DIR/mvm"
 TEMP_BINARY="$(mktemp "$INSTALL_DIR/.mvm.XXXXXX")"
@@ -32,8 +33,21 @@ trap - EXIT
 
 case "$(basename "${SHELL:-bash}")" in
     bash)
-        if [[ "$(uname -s)" == "Darwin" && -f "$HOME/.bash_profile" ]]; then
+        if [[ "$(uname -s)" == "Darwin" && -f "$HOME/.bash_profile" ]] && ! grep -Fq "# MVM Bash login bridge" "$HOME/.bash_profile"; then
             PROFILE="$HOME/.bash_profile"
+        elif [[ "$(uname -s)" == "Darwin" ]]; then
+            PROFILE="$HOME/.bashrc"
+            if ! grep -Fq "# MVM Bash login bridge" "$HOME/.bash_profile" 2>/dev/null; then
+                {
+                    printf '\n# MVM Bash login bridge\n'
+                    if [[ -f "$HOME/.bash_login" ]]; then
+                        printf '[ -r %q ] && . %q\n' "$HOME/.bash_login" "$HOME/.bash_login"
+                    elif [[ -f "$HOME/.profile" ]]; then
+                        printf '[ -r %q ] && . %q\n' "$HOME/.profile" "$HOME/.profile"
+                    fi
+                    printf '[ -r %q ] && . %q\n' "$HOME/.bashrc" "$HOME/.bashrc"
+                } >> "$HOME/.bash_profile"
+            fi
         else
             PROFILE="$HOME/.bashrc"
         fi
@@ -51,7 +65,16 @@ if ! grep -Fq "# MVM" "$PROFILE" 2>/dev/null; then
     fi
 fi
 
-export MVM_HOME
+if [[ "$(basename "${SHELL:-bash}")" == "bash" ]]; then
+    COMPLETION_DIR="$MVM_HOME/completions"
+    COMPLETION_FILE="$COMPLETION_DIR/mvm.bash"
+    mkdir -p "$COMPLETION_DIR"
+    "$BINARY" completion bash > "$COMPLETION_FILE"
+    if ! grep -Fq 'MVM_HOME/completions/mvm.bash' "$PROFILE" 2>/dev/null; then
+        printf '\n# MVM bash completion\n[ -r "$MVM_HOME/completions/mvm.bash" ] && . "$MVM_HOME/completions/mvm.bash"\n' >> "$PROFILE"
+    fi
+fi
+
 export PATH="$INSTALL_DIR:$PATH"
 echo "MVM installed at $BINARY"
 echo "Restart your shell (or source $PROFILE) to use mvm in new terminals."

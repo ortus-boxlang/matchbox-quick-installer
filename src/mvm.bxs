@@ -385,7 +385,7 @@ function updateMvmCommand() {
 }
 
 function checkMvmUpdateOnStartup( command ) {
-    if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update", command ) ) return;
+    if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update,completion", command ) ) return;
     var binaryPath = MVM_HOME & "/bin/mvm" & ( isWindows() ? ".exe" : "" );
     if ( !fileExists( binaryPath ) ) return;
     var nowMillis = now().getTime();
@@ -504,7 +504,84 @@ function cleanCache() {
     println( "MVM download cache cleared." );
 }
 
-function doctor() {
+function bashCompletionStatus( fix=false ) {
+    var shellPath = getsystemsetting( "SHELL", "" );
+    var shellName = listLast( replace( shellPath, chr( 92 ), "/", "all" ), "/" ).lCase();
+    if ( isWindows() || shellName != "bash" ) return { supported: false, configured: false };
+
+    var osName = trim( systemExecute( "uname", [ "-s" ], 10 ).output ).lCase();
+    if ( osName != "linux" && osName != "darwin" ) return { supported: false, configured: false };
+
+    var home = getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "" ) );
+    if ( !len( trim( home ) ) ) return { supported: false, configured: false };
+    var profile = home & "/.bashrc";
+    var loginReady = osName != "darwin";
+    if ( osName == "darwin" ) {
+        var loginProfile = home & "/.bash_profile";
+        var loginContents = fileExists( loginProfile ) ? fileRead( loginProfile ) : "";
+        var bridgeMarker = "MVM Bash login bridge";
+        var bridged = findNoCase( bridgeMarker, loginContents ) > 0 && findNoCase( ".bashrc", loginContents ) > 0;
+        if ( fileExists( loginProfile ) && !bridged ) {
+            profile = loginProfile;
+            loginReady = true;
+        } else {
+            if ( fix && !bridged ) {
+                var bridgeLines = [];
+                if ( findNoCase( bridgeMarker, loginContents ) == 0 ) arrayAppend( bridgeLines, chr( 35 ) & " " & bridgeMarker );
+                if ( fileExists( home & "/.bash_login" ) && findNoCase( ".bash_login", loginContents ) == 0 ) {
+                    arrayAppend( bridgeLines, '[ -r "$HOME/.bash_login" ] && . "$HOME/.bash_login"' );
+                } else if ( fileExists( home & "/.profile" ) && findNoCase( ".profile", loginContents ) == 0 ) {
+                    arrayAppend( bridgeLines, '[ -r "$HOME/.profile" ] && . "$HOME/.profile"' );
+                }
+                var bashrcLine = '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"';
+                if ( findNoCase( bashrcLine, loginContents ) == 0 ) arrayAppend( bridgeLines, bashrcLine );
+                fileWrite( loginProfile, ( len( loginContents ) ? loginContents & chr( 10 ) : "" ) & arrayToList( bridgeLines, chr( 10 ) ) & chr( 10 ) );
+                bridged = true;
+            }
+            profile = home & "/.bashrc";
+            loginReady = bridged;
+        }
+    }
+
+    var completionFile = MVM_HOME & "/completions/mvm.bash";
+    var profileContents = fileExists( profile ) ? fileRead( profile ) : "";
+    var quotedPath = "'" & replace( completionFile, "'", "'" & chr( 92 ) & "''", "all" ) & "'";
+    var registrationMarker = "MVM bash completion " & quotedPath;
+    var sourceLine = "[ -r " & quotedPath & " ] && . " & quotedPath;
+    var registered = findNoCase( "MVM_HOME/completions/mvm.bash", profileContents ) > 0 || findNoCase( sourceLine, profileContents ) > 0;
+    var current = fileExists( completionFile ) && trim( fileRead( completionFile ) ) == trim( getBashCompletionScript() );
+    if ( fix ) {
+        var completionDirectory = MVM_HOME & "/completions";
+        if ( !directoryExists( completionDirectory ) ) directoryCreate( completionDirectory );
+        fileWrite( completionFile, getBashCompletionScript() );
+        if ( !registered ) {
+            var markerLine = findNoCase( registrationMarker, profileContents ) > 0 ? "" : chr( 35 ) & " " & registrationMarker & chr( 10 );
+            fileWrite( profile, ( len( profileContents ) ? profileContents & chr( 10 ) : "" ) & markerLine & sourceLine & chr( 10 ) );
+        }
+        registered = true;
+        current = true;
+    }
+    return { supported: true, configured: current && registered && loginReady, profile: profile, completionFile: completionFile };
+}
+
+function doctor( fixBashCompletions=false ) {
+    var bashCompletions = {};
+    try {
+        bashCompletions = bashCompletionStatus( fixBashCompletions );
+    } catch ( any e ) {
+        println( "Could not inspect or repair Bash completions: " & e.message );
+        cliexit( 1 );
+    }
+    if ( fixBashCompletions && !bashCompletions.supported ) {
+        println( "Bash completion repair requires Bash on Linux or macOS." );
+        cliexit( 1 );
+    }
+    if ( bashCompletions.supported ) {
+        if ( fixBashCompletions ) println( "Bash completions installed at " & bashCompletions.completionFile & ". Restart your shell or source " & bashCompletions.profile & "." );
+        else if ( !bashCompletions.configured ) println( "Bash completions are missing or stale. Run 'mvm doctor --fix'." );
+        else println( "Bash completions are configured." );
+    }
+
     var windows = isWindows();
     var binDirectory = MVM_HOME & "/bin";
     var expectedBin = binDirectory;
@@ -584,6 +661,47 @@ function execCurrentVersion( execArguments, cliOptions ) {
     if ( isNull( result.exitCode ) || result.exitCode != 0 ) cliexit( isNull( result.exitCode ) ? 1 : result.exitCode );
 }
 
+function getBashCompletionScript() {
+    var quote = chr( 34 );
+    var lines = [];
+    arrayAppend( lines, "_mvm_completions() {" );
+    arrayAppend( lines, "  local cur=${COMP_WORDS[COMP_CWORD]}" );
+    arrayAppend( lines, "  local command=${COMP_WORDS[1]}" );
+    arrayAppend( lines, "  local version" );
+    arrayAppend( lines, "  if [[ $COMP_CWORD == 1 ]]; then" );
+    arrayAppend( lines, "    COMPREPLY=( $(compgen -W 'install update use local current doctor clean list ls list-remote remove uninstall exec run tui version completion help' -- " & quote & "$cur" & quote & ") )" );
+    arrayAppend( lines, "    return" );
+    arrayAppend( lines, "  fi" );
+    arrayAppend( lines, "  [[ $COMP_CWORD == 2 ]] || return" );
+    arrayAppend( lines, "  case $command in" );
+    arrayAppend( lines, "    install)" );
+    arrayAppend( lines, "      if [[ $cur == -* ]]; then" );
+    arrayAppend( lines, "        COMPREPLY=( $(compgen -W '--force' -- " & quote & "$cur" & quote & ") )" );
+    arrayAppend( lines, "      else" );
+    arrayAppend( lines, "        COMPREPLY=( $(compgen -W 'latest' -- " & quote & "$cur" & quote & ") )" );
+    arrayAppend( lines, "      fi" );
+    arrayAppend( lines, "      ;;" );
+    arrayAppend( lines, "    use|local|remove)" );
+    arrayAppend( lines, "      local -a versions=()" );
+    arrayAppend( lines, "      for version in " & quote & "${MVM_HOME:-$HOME/.mvm}/versions/" & quote & "*; do" );
+    arrayAppend( lines, "        [[ -d $version ]] && versions+=( " & quote & "${version" & chr( 35 ) & chr( 35 ) & "*/}" & quote & " )" );
+    arrayAppend( lines, "      done" );
+    arrayAppend( lines, "      COMPREPLY=( $(compgen -W " & quote & "${versions[*]}" & quote & " -- " & quote & "$cur" & quote & ") )" );
+    arrayAppend( lines, "      ;;" );
+    arrayAppend( lines, "    doctor) COMPREPLY=( $(compgen -W '--fix' -- " & quote & "$cur" & quote & ") ) ;;" );
+    arrayAppend( lines, "    completion) COMPREPLY=( $(compgen -W 'bash' -- " & quote & "$cur" & quote & ") ) ;;" );
+    arrayAppend( lines, "  esac" );
+    arrayAppend( lines, "}" );
+    arrayAppend( lines, "if [[ $- == *i* ]]; then" );
+    arrayAppend( lines, "  complete -o default -F _mvm_completions mvm" );
+    arrayAppend( lines, "fi" );
+    return arrayToList( lines, chr( 10 ) ) & chr( 10 );
+}
+
+function showBashCompletion() {
+    print( getBashCompletionScript() );
+}
+
 function showHelp() {
     println( "📦 MatchBox Version Manager (MVM) v" & MVM_VERSION );
     println( "" );
@@ -594,7 +712,7 @@ function showHelp() {
     println( "  use [version]         Activate a version or read .mvmrc" );
     println( "  local [version]       Set or show the current directory's .mvmrc" );
     println( "  current               Show the active MatchBox version" );
-    println( "  doctor                Check MVM and the active MatchBox installation" );
+    println( "  doctor [--fix]        Check MVM; --fix repairs Bash completions" );
     println( "  clean                 Clear temporary download files" );
     println( "  list                  List installed versions" );
     println( "  list-remote           List versions available to install" );
@@ -603,6 +721,7 @@ function showHelp() {
     println( "  run <args...>         Alias for exec" );
     println( "  tui                   Browse, install, and activate versions" );
     println( "  version               Show MVM version" );
+    println( "  completion bash       Print Bash completion script" );
     println( "  help                  Show this help" );
     println( "" );
     println( "  install <version> --force  Reinstall an existing version" );
@@ -638,7 +757,7 @@ switch ( command ) {
         showCurrent();
         break;
     case "doctor":
-        doctor();
+        doctor( cli.options.keyExists( "fix" ) && cli.options.fix );
         break;
     case "clean":
         cleanCache();
@@ -665,6 +784,13 @@ switch ( command ) {
         break;
     case "version":
         println( "MVM version: " & MVM_VERSION );
+        break;
+    case "completion":
+        if ( arrayLen( args ) < 2 || args[ 2 ].lCase() != "bash" ) {
+            println( "Usage: mvm completion bash" );
+            cliexit( 1 );
+        }
+        showBashCompletion();
         break;
     case "list":
     case "ls":

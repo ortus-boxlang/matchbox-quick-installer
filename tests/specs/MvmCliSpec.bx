@@ -52,6 +52,180 @@ class extends="testbox.system.BaseSpec" {
                 expect( installed.output & installed.error ).toInclude( "MVM version: " & versions[ 1 ] );
             } );
 
+            it( "prints a valid Bash completion script", function() {
+                var result = runMvm( [ "completion", "bash" ] );
+                var completionFile = variables.mvmHome & "/mvm-completion.bash";
+                directoryCreate( variables.mvmHome & "/versions/0.9.0" );
+                fileWrite( completionFile, result.output );
+                var syntax = systemExecute( name="bash", arguments=[ "-n", completionFile ], timeout=10 );
+                var shellCommand = 'source "$1"; COMP_WORDS=(mvm use 0.); COMP_CWORD=2; _mvm_completions; echo "${COMPREPLY[*]}"';
+                var completion = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", shellCommand, "bash", completionFile ],
+                    timeout=10,
+                    environment={ MVM_HOME: variables.mvmHome }
+                );
+
+                expect( result.exitCode ).toBe( 0 );
+                expect( result.output ).toInclude( "install update use local" );
+                expect( result.output ).toInclude( "--force" );
+                expect( result.output ).toInclude( "--fix" );
+                expect( syntax.exitCode ).toBe( 0 );
+                expect( completion.output ).toInclude( "0.9.0" );
+            } );
+
+            it( "installs and registers Bash completions", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var userHome = variables.mvmHome & "/user";
+                var fakeBin = variables.mvmHome & "/fake-bin";
+                var mvmHome = userHome & "/custom-mvm";
+                var curlScript = fakeBin & "/curl";
+                var unameScript = fakeBin & "/uname";
+                var newline = createObject( "java", "java.lang.System" ).lineSeparator();
+                directoryCreate( userHome );
+                directoryCreate( fakeBin );
+                fileWrite( curlScript,
+                    "##!/bin/sh" & newline &
+                    "while [ $## -gt 0 ]; do" & newline &
+                    "  if [ $1 = -o ]; then shift; output=$1; fi" & newline &
+                    "  shift" & newline &
+                    "done" & newline &
+                    "cp $MVM_BIN $output" & newline
+                );
+                fileWrite( unameScript,
+                    "##!/bin/sh" & newline &
+                    "case $1 in -s) echo ${MVM_TEST_OS:-Linux} ;; -m) echo x86_64 ;; esac" & newline
+                );
+                var chmod = systemExecute( name="chmod", arguments=[ "+x", curlScript ], timeout=10 );
+                var chmodUname = systemExecute( name="chmod", arguments=[ "+x", unameScript ], timeout=10 );
+                var installOptions = {
+                    name: "bash",
+                    arguments: [ "install/install.sh" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        MVM_HOME: mvmHome,
+                        MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
+                        SHELL: "/bin/bash",
+                        PATH: fakeBin & ":" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var installer = systemExecute( argumentCollection=installOptions );
+                var repeatedInstall = systemExecute( argumentCollection=installOptions );
+                var completionFile = mvmHome & "/completions/mvm.bash";
+                var profile = fileRead( userHome & "/.bashrc" );
+                var completionMarkers = reMatchNoCase( "MVM bash completion", profile );
+                var macUserHome = variables.mvmHome & "/mac-user";
+                var macMvmHome = macUserHome & "/custom-mvm";
+                directoryCreate( macUserHome );
+                var macInstallOptions = {
+                    name: "bash",
+                    arguments: [ "install/install.sh" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: macUserHome,
+                        MVM_HOME: macMvmHome,
+                        MVM_BIN: getsystemsetting( "MVM_BIN", "" ),
+                        MVM_TEST_OS: "Darwin",
+                        SHELL: "/bin/bash",
+                        PATH: fakeBin & ":" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var macInstaller = systemExecute( argumentCollection=macInstallOptions );
+                var macRepeatInstall = systemExecute( argumentCollection=macInstallOptions );
+                var bashProfile = fileRead( macUserHome & "/.bash_profile" );
+                var macBashrc = fileRead( macUserHome & "/.bashrc" );
+                var macCompletionMarkers = reMatchNoCase( "MVM bash completion", macBashrc );
+                var loginShell = systemExecute(
+                    name="bash",
+                    arguments=[ "--login", "-c", "echo $MVM_HOME" ],
+                    timeout=10,
+                    environment={ HOME: macUserHome, MVM_HOME: "/ignored", PATH: getsystemsetting( "PATH", "" ) }
+                );
+
+                expect( chmod.exitCode ).toBe( 0 );
+                expect( chmodUname.exitCode ).toBe( 0 );
+                expect( installer.exitCode ).toBe( 0 );
+                expect( repeatedInstall.exitCode ).toBe( 0 );
+                expect( fileExists( completionFile ) ).toBeTrue();
+                expect( fileRead( completionFile ) ).toInclude( "complete -o default -F _mvm_completions mvm" );
+                expect( arrayLen( completionMarkers ) ).toBe( 1 );
+                expect( macInstaller.exitCode ).toBe( 0 );
+                expect( macRepeatInstall.exitCode ).toBe( 0 );
+                expect( bashProfile ).toInclude( "MVM Bash login bridge" );
+                expect( bashProfile ).toInclude( ".bashrc" );
+                expect( arrayLen( macCompletionMarkers ) ).toBe( 1 );
+                expect( loginShell.output ).toInclude( "/custom-mvm" );
+            } );
+
+            it( "repairs Bash completions when doctor is asked to fix them", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var userHome = variables.mvmHome & "/doctor-user";
+                var mvmHome = userHome & "/custom-mvm";
+                var fakeBin = userHome & "/fake-bin";
+                var newline = createObject( "java", "java.lang.System" ).lineSeparator();
+                directoryCreate( userHome );
+                directoryCreate( fakeBin );
+                var unameScript = fakeBin & "/uname";
+                fileWrite( unameScript, "##!/bin/sh" & newline & "case $1 in -s) echo ${MVM_TEST_OS:-Linux} ;; -m) echo x86_64 ;; esac" & newline );
+                var chmod = systemExecute( name="chmod", arguments=[ "+x", unameScript ], timeout=10 );
+                var options = {
+                    name: getsystemsetting( "MVM_BIN", "" ),
+                    arguments: [ "doctor" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        MVM_HOME: mvmHome,
+                        SHELL: "/bin/bash",
+                        PATH: fakeBin & ":" & mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var diagnostic = systemExecute( argumentCollection=options );
+                var completionFile = mvmHome & "/completions/mvm.bash";
+                var profilePath = userHome & "/.bashrc";
+                var initiallyMissing = !fileExists( completionFile );
+                var profileUntouched = !fileExists( profilePath );
+                options.arguments = [ "doctor", "--fix" ];
+                var fixed = systemExecute( argumentCollection=options );
+                fileWrite( completionFile, "stale completion" );
+                options.arguments = [ "doctor" ];
+                var staleDiagnostic = systemExecute( argumentCollection=options );
+                var stalePreserved = fileRead( completionFile ) == "stale completion";
+                options.arguments = [ "doctor", "--fix" ];
+                var repeatedFix = systemExecute( argumentCollection=options );
+                options.environment[ "MVM_TEST_OS" ] = "Darwin";
+                var macFix = systemExecute( argumentCollection=options );
+                var bashProfile = fileRead( userHome & "/.bash_profile" );
+                directoryCreate( mvmHome & "/versions/0.9.0" );
+                var loginCompletion = systemExecute(
+                    name="bash",
+                    arguments=[ "--login", "-c", 'COMP_WORDS=(mvm use 0.); COMP_CWORD=2; _mvm_completions; echo "${COMPREPLY[*]}"' ],
+                    timeout: 10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, PATH: getsystemsetting( "PATH", "" ) }
+                );
+                var profile = fileExists( profilePath ) ? fileRead( profilePath ) : "";
+                var completionMarkers = reMatchNoCase( "MVM bash completion", profile );
+
+                expect( chmod.exitCode ).toBe( 0 );
+                expect( diagnostic.exitCode ).toBe( 0 );
+                expect( diagnostic.output & diagnostic.error ).toInclude( "Run 'mvm doctor --fix'" );
+                expect( initiallyMissing ).toBeTrue();
+                expect( profileUntouched ).toBeTrue();
+                expect( fixed.exitCode ).toBe( 0 );
+                expect( fixed.output & fixed.error ).toInclude( "Bash completions" );
+                expect( staleDiagnostic.output & staleDiagnostic.error ).toInclude( "missing or stale" );
+                expect( stalePreserved ).toBeTrue();
+                expect( repeatedFix.exitCode ).toBe( 0 );
+                expect( fileExists( completionFile ) ).toBeTrue();
+                expect( fileRead( completionFile ) ).toInclude( "_mvm_completions" );
+                expect( arrayLen( completionMarkers ) ).toBe( 1 );
+                expect( macFix.exitCode ).toBe( 0 );
+                expect( bashProfile ).toInclude( "MVM Bash login bridge" );
+                expect( loginCompletion.output ).toInclude( "0.9.0" );
+            } );
+
             it( "asks before updating MVM on interactive startup", function() {
                 if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
 
@@ -72,10 +246,20 @@ class extends="testbox.system.BaseSpec" {
                         PATH: getsystemsetting( "PATH", "" )
                     }
                 };
+                var completionStartup = {
+                    name: "/bin/sh",
+                    arguments: [ "-c", "script -qec '$MVM_BIN completion bash' /dev/null" ],
+                    timeout: 30,
+                    environment: startup.environment
+                };
+                var completionResult = systemExecute( argumentCollection=completionStartup );
                 var result = systemExecute( argumentCollection=startup );
                 var secondResult = systemExecute( argumentCollection=startup );
 
                 expect( chmod.exitCode ).toBe( 0 );
+                expect( completionResult.exitCode ).toBe( 0 );
+                expect( completionResult.output & completionResult.error ).toInclude( "_mvm_completions" );
+                expect( completionResult.output & completionResult.error ).notToInclude( "Update now? [y/N]" );
                 expect( result.exitCode ).toBe( 0 );
                 expect( result.output & result.error ).toInclude( "Update now? [y/N]" );
                 expect( secondResult.exitCode ).toBe( 0 );
