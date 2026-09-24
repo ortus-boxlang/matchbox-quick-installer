@@ -2,6 +2,19 @@ class extends="testbox.system.BaseSpec" {
 
     function run() {
         describe( "MVM CLI", function() {
+            it( "shows help when run without a command", function() {
+                var result = systemExecute(
+                    name=getsystemsetting( "MVM_BIN", "" ),
+                    arguments=[],
+                    timeout=30
+                );
+                var output = result.output & result.error;
+
+                expect( output ).toInclude( "MatchBox Version Manager" );
+                expect( output ).toInclude( "install <version>" );
+                expect( output ).toInclude( "tui" );
+            } );
+
             it( "reports an empty install when MVM_HOME has no versions", function() {
                 var home = getsystemsetting( "MVM_HOME", "" );
                 var binary = getsystemsetting( "MVM_BIN", "" );

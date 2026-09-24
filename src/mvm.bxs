@@ -1,14 +1,42 @@
+MVM_VERSION = "0.1.0";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "user.home", "~" ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
 
+function showHelp() {
+    println( "📦 MatchBox Version Manager (MVM) v" & MVM_VERSION );
+    println( "" );
+    println( "USAGE: mvm <command> [arguments]" );
+    println( "" );
+    println( "  install <version>     Install a MatchBox version" );
+    println( "  use [version]         Activate a version or read .mvmrc" );
+    println( "  local [version]       Set or show the current directory's .mvmrc" );
+    println( "  current               Show the active MatchBox version" );
+    println( "  list                  List installed versions" );
+    println( "  list-remote           List versions available to install" );
+    println( "  remove <version>      Remove an installed version" );
+    println( "  exec <args...>        Run MatchBox with the active version" );
+    println( "  run <args...>         Alias for exec" );
+    println( "  tui                   Browse, install, and activate versions" );
+    println( "  version               Show MVM version" );
+    println( "  help                  Show this help" );
+    println( "" );
+    println( "MVM_HOME defaults to ~/.mvm" );
+}
+
 var cli = cligetargs();
 var args = cli.positionals;
 var command = arrayLen( args ) ? trim( args[ 1 ] ) : "";
 
 switch ( command ) {
+    case "":
+    case "help":
+    case "--help":
+    case "-h":
+        showHelp();
+        break;
     case "list":
     case "ls":
         var versions = directoryList( MVM_VERSIONS, false, "name" );
