@@ -1,18 +1,35 @@
 class extends="testbox.system.BaseSpec" {
 
+    variables.mvmHome = "";
+
     function run() {
         describe( "MVM CLI", function() {
+            beforeEach( function() {
+                variables.mvmHome = getTempDirectory() & "/mvm-" & createUUID();
+                directoryCreate( variables.mvmHome );
+            } );
+
+            afterEach( function() {
+                if ( directoryExists( variables.mvmHome ) ) directoryDelete( variables.mvmHome, true );
+            } );
+
             it( "lists released MatchBox versions available for this platform", function() {
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[ "list-remote" ],
-                    timeout=45
-                );
+                var result = runMvm( [ "list-remote" ] );
                 var output = result.output & result.error;
 
                 expect( result.exitCode ).toBe( 0 );
                 expect( output ).toInclude( "Available MatchBox versions" );
                 expect( reFindNoCase( "[0-9]+[.][0-9]+[.][0-9]+", output ) ).toBeGT( 0 );
+            } );
+
+            it( "installs the latest MatchBox release", function() {
+                var result = runMvm( [ "install", "latest" ] );
+                var installed = runMvm( [ "list" ] );
+
+                expect( result.exitCode ).toBe( 0 );
+                expect( result.output & result.error ).toInclude( "installed" );
+                expect( installed.output ).notToInclude( "No MatchBox versions installed" );
+                expect( reFindNoCase( "[0-9]+[.][0-9]+[.][0-9]+", installed.output ) ).toBeGT( 0 );
             } );
 
             it( "defaults to .mvm under the user's home directory", function() {
@@ -32,11 +49,7 @@ class extends="testbox.system.BaseSpec" {
             } );
 
             it( "shows help when run without a command", function() {
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[],
-                    timeout=30
-                );
+                var result = runMvm( [] );
                 var output = result.output & result.error;
 
                 expect( output ).toInclude( "MatchBox Version Manager" );
@@ -45,66 +58,48 @@ class extends="testbox.system.BaseSpec" {
             } );
 
             it( "prints the MVM application version", function() {
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[ "version" ],
-                    timeout=30
-                );
-
+                var result = runMvm( [ "version" ] );
                 expect( result.output & result.error ).toInclude( "MVM version: 0.1.0" );
             } );
 
             it( "stores a project version in .mvmrc", function() {
-                var workingDir = getsystemsetting( "MVM_HOME", "" ) & "/test-project";
+                var workingDir = variables.mvmHome & "/project";
                 directoryCreate( workingDir );
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[ "local", "0.10.1" ],
-                    directory=workingDir,
-                    timeout=30
-                );
+                var result = runMvm( [ "local", "0.10.1" ], workingDir );
 
                 expect( result.exitCode ).toBe( 0 );
                 expect( fileRead( workingDir & "/.mvmrc" ).trim() ).toBe( "0.10.1" );
             } );
 
             it( "rejects activating a version that is not installed", function() {
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[ "use", "99.99.99" ],
-                    timeout=30
-                );
+                var result = runMvm( [ "use", "99.99.99" ] );
 
                 expect( result.exitCode ).toBe( 1 );
                 expect( result.output & result.error ).toInclude( "not installed" );
             } );
 
             it( "reports when no MatchBox version is active", function() {
-                var result = systemExecute(
-                    name=getsystemsetting( "MVM_BIN", "" ),
-                    arguments=[ "current" ],
-                    timeout=30
-                );
-
+                var result = runMvm( [ "current" ] );
                 expect( result.output & result.error ).toInclude( "No MatchBox version is active" );
             } );
 
             it( "reports an empty install when MVM_HOME has no versions", function() {
-                var home = getsystemsetting( "MVM_HOME", "" );
-                var binary = getsystemsetting( "MVM_BIN", "" );
-
-                expect( len( home ) ).toBeGT( 0 );
-                expect( len( binary ) ).toBeGT( 0 );
-
-                var result = systemExecute(
-                    name=binary,
-                    arguments=[ "list" ],
-                    timeout=30
-                );
+                var result = runMvm( [ "list" ] );
 
                 expect( result.output & result.error ).toInclude( "No MatchBox versions installed" );
-                expect( directoryExists( home & "/versions" ) ).toBeTrue();
+                expect( directoryExists( variables.mvmHome & "/versions" ) ).toBeTrue();
             } );
         } );
+    }
+
+    private function runMvm( required array args, string workingDir="" ) {
+        var options = {
+            name: getsystemsetting( "MVM_BIN", "" ),
+            arguments: args,
+            timeout: 180,
+            environment: { MVM_HOME: variables.mvmHome }
+        };
+        if ( len( workingDir ) ) options.directory = workingDir;
+        return systemExecute( argumentCollection=options );
     }
 }

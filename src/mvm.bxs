@@ -1,11 +1,13 @@
 MVM_VERSION = "0.1.0";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
+MVM_CACHE = MVM_HOME & "/cache";
 MVM_CURRENT = MVM_HOME & "/current";
 MATCHBOX_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
+if ( !directoryExists( MVM_CACHE ) ) directoryCreate( MVM_CACHE );
 
 function githubJson( url ) {
     var response = {};
@@ -26,8 +28,12 @@ function githubJson( url ) {
     return jsonDeserialize( response.body );
 }
 
+function isWindows() {
+    return getsystemsetting( "OS", "" ).lCase() contains "windows";
+}
+
 function getPlatformAssetName() {
-    var windows = getsystemsetting( "OS", "" ).lCase() contains "windows";
+    var windows = isWindows();
     var os = "";
     if ( windows ) {
         os = "windows";
@@ -85,6 +91,83 @@ function isValidVersion( version ) {
     return reFind( "^[A-Za-z0-9][A-Za-z0-9.+_-]*$", version ) == 1;
 }
 
+function getReleaseInfo( version ) {
+    version = normalizeVersion( version );
+    if ( !isValidVersion( version ) ) {
+        println( "Invalid MatchBox version: " & version );
+        cliexit( 1 );
+    }
+    var tag = version == "latest" ? "latest" : ( version == "snapshot" ? "snapshot" : "v" & version );
+    var endpoint = tag == "latest" ? "/latest" : "/tags/" & tag;
+    return githubJson( MATCHBOX_GITHUB_API & "/releases" & endpoint );
+}
+
+function findReleaseAsset( release, assetName ) {
+    for ( asset in release.assets ) {
+        if ( asset.name == assetName ) return asset.browser_download_url;
+    }
+    return "";
+}
+
+function installVersion( requestedVersion, force=false ) {
+    var release = getReleaseInfo( len( trim( requestedVersion ) ) ? requestedVersion : "latest" );
+    var version = normalizeVersion( release.tag_name );
+    var versionDir = MVM_VERSIONS & "/" & version;
+    if ( directoryExists( versionDir ) && !force ) {
+        println( "MatchBox " & version & " is already installed. Use --force to reinstall." );
+        return;
+    }
+
+    var assetName = getPlatformAssetName();
+    var assetUrl = findReleaseAsset( release, assetName );
+    if ( !len( assetUrl ) ) {
+        println( "No " & assetName & " asset exists for MatchBox " & version );
+        cliexit( 1 );
+    }
+
+    var downloadPath = MVM_CACHE & "/matchbox-" & version & "-" & createUUID() & ".download";
+    println( "Downloading MatchBox " & version & "..." );
+    var response = {};
+    try {
+        response = jsonDeserialize( http({
+            url: assetUrl,
+            path: downloadPath,
+            timeout: 180
+        }).get() );
+    } catch ( any e ) {
+        if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
+        println( "failed." );
+        println( e.message );
+        cliexit( 1 );
+    }
+    if ( response.status != 200 || !fileExists( downloadPath ) || fileInfo( downloadPath ).size == 0 ) {
+        if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
+        println( "failed (HTTP " & response.status & ")." );
+        cliexit( 1 );
+    }
+
+    var stageDir = MVM_VERSIONS & "/.mvm-stage-" & createUUID();
+    var backupDir = MVM_VERSIONS & "/.mvm-backup-" & createUUID();
+    var binaryName = isWindows() ? "matchbox.exe" : "matchbox";
+    var stageBinary = stageDir & "/bin/" & binaryName;
+    directoryCreate( stageDir & "/bin" );
+    fileMove( downloadPath, stageBinary );
+    if ( !isWindows() ) fileSetExecutable( stageBinary );
+
+    var hadVersion = directoryExists( versionDir );
+    if ( hadVersion ) directoryMove( versionDir, backupDir );
+    try {
+        directoryMove( stageDir, versionDir );
+    } catch ( any e ) {
+        if ( hadVersion ) directoryMove( backupDir, versionDir );
+        if ( directoryExists( stageDir ) ) directoryDelete( stageDir, true );
+        println( "Could not install MatchBox " & version & ": " & e.message );
+        cliexit( 1 );
+    }
+    if ( hadVersion ) directoryDelete( backupDir, true );
+    println( "MatchBox " & version & " installed." );
+}
+
 function useVersion( version ) {
     version = trim( version );
     if ( !len( version ) && fileExists( ".mvmrc" ) ) {
@@ -103,6 +186,15 @@ function useVersion( version ) {
 
     fileWrite( MVM_CURRENT, version & chr( 10 ) );
     println( "Now using MatchBox " & version );
+}
+
+function listInstalledVersions() {
+    var installed = directoryList( MVM_VERSIONS, false, "name" );
+    if ( !arrayLen( installed ) ) {
+        println( "No MatchBox versions installed. Run 'mvm install latest' to get started." );
+        return;
+    }
+    for ( version in installed ) println( version );
 }
 
 function showLocalVersion() {
@@ -167,6 +259,10 @@ switch ( command ) {
     case "current":
         showCurrent();
         break;
+    case "install":
+        var force = cli.options.keyExists( "force" ) && cli.options.force;
+        installVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "latest", force );
+        break;
     case "list-remote":
         listRemoteVersions();
         break;
@@ -175,12 +271,7 @@ switch ( command ) {
         break;
     case "list":
     case "ls":
-        var versions = directoryList( MVM_VERSIONS, false, "name" );
-        if ( !arrayLen( versions ) ) {
-            println( "No MatchBox versions installed. Run 'mvm install latest' to get started." );
-        } else {
-            for ( version in versions ) println( version );
-        }
+        listInstalledVersions();
         break;
     default:
         println( "MVM" );
