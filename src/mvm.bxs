@@ -168,10 +168,20 @@ function installVersion( requestedVersion, force=false ) {
     println( "MatchBox " & version & " installed." );
 }
 
+function getCurrentVersion() {
+    if ( !fileExists( MVM_CURRENT ) ) return "";
+    var version = normalizeVersion( trim( fileRead( MVM_CURRENT ) ) );
+    return isValidVersion( version ) ? version : "";
+}
+
 function useVersion( version ) {
     version = trim( version );
     if ( !len( version ) && fileExists( ".mvmrc" ) ) {
         version = trim( fileRead( ".mvmrc" ) );
+    }
+    version = normalizeVersion( version );
+    if ( version == "latest" || version == "snapshot" ) {
+        version = normalizeVersion( getReleaseInfo( version ).tag_name );
     }
     if ( !isValidVersion( version ) ) {
         println( "Specify a valid MatchBox version or set .mvmrc." );
@@ -194,7 +204,11 @@ function listInstalledVersions() {
         println( "No MatchBox versions installed. Run 'mvm install latest' to get started." );
         return;
     }
-    for ( version in installed ) println( version );
+    var current = getCurrentVersion();
+    for ( version in installed ) {
+        var displayVersion = normalizeVersion( version );
+        println( displayVersion == current ? "▶ " & displayVersion & " (current)" : "  " & displayVersion );
+    }
 }
 
 function showLocalVersion() {
@@ -206,11 +220,44 @@ function showLocalVersion() {
 }
 
 function showCurrent() {
-    if ( !fileExists( MVM_CURRENT ) ) {
+    var current = getCurrentVersion();
+    if ( !len( current ) ) {
         println( "No MatchBox version is active. Run 'mvm use <version>'." );
         return;
     }
-    println( "Current MatchBox version: " & trim( fileRead( MVM_CURRENT ) ) );
+    println( "Current MatchBox version: " & current );
+}
+
+function getForwardedArgs( positionals ) {
+    var forwarded = [];
+    for ( var i = 2; i <= arrayLen( positionals ); i++ ) arrayAppend( forwarded, positionals[ i ] );
+    return forwarded;
+}
+
+function execCurrentVersion( execArguments, cliOptions ) {
+    var current = getCurrentVersion();
+    if ( !len( current ) ) {
+        println( "No MatchBox version is active. Run 'mvm use <version>'." );
+        cliexit( 1 );
+    }
+    var binaryName = isWindows() ? "matchbox.exe" : "matchbox";
+    var binaryPath = MVM_VERSIONS & "/" & current & "/bin/" & binaryName;
+    if ( !fileExists( binaryPath ) ) {
+        println( "MatchBox binary not found: " & binaryPath );
+        cliexit( 1 );
+    }
+    for ( option in cliOptions ) {
+        var optionValue = cliOptions[ option ];
+        arrayAppend( execArguments, optionValue == false ? "--no-" & option : "--" & option & ( optionValue == true ? "" : "=" & optionValue ) );
+    }
+    var result = {};
+    try {
+        result = systemExecute( binaryPath, execArguments, 0, false, null, null, null, true, {}, true );
+    } catch ( any e ) {
+        println( "Could not execute MatchBox: " & e.message );
+        cliexit( 1 );
+    }
+    if ( isNull( result.exitCode ) || result.exitCode != 0 ) cliexit( isNull( result.exitCode ) ? 1 : result.exitCode );
 }
 
 function showHelp() {
@@ -260,8 +307,11 @@ switch ( command ) {
         showCurrent();
         break;
     case "install":
-        var force = cli.options.keyExists( "force" ) && cli.options.force;
-        installVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "latest", force );
+        installVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "latest", cli.options.keyExists( "force" ) && cli.options.force );
+        break;
+    case "exec":
+    case "run":
+        execCurrentVersion( getForwardedArgs( args ), cli.options );
         break;
     case "list-remote":
         listRemoteVersions();

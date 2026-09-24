@@ -32,6 +32,28 @@ class extends="testbox.system.BaseSpec" {
                 expect( reFindNoCase( "[0-9]+[.][0-9]+[.][0-9]+", installed.output ) ).toBeGT( 0 );
             } );
 
+            it( "activates the local version and executes MatchBox", function() {
+                expect( runMvm( [ "install", "latest" ] ).exitCode ).toBe( 0 );
+                var installed = runMvm( [ "list" ] );
+                var versions = reMatchNoCase( "[0-9]+[.][0-9]+[.][0-9]+", installed.output );
+                expect( arrayLen( versions ) ).toBeGT( 0 );
+
+                var workingDir = variables.mvmHome & "/project";
+                directoryCreate( workingDir );
+                runMvm( [ "local", "latest" ], workingDir );
+                var use = runMvm( [ "use" ], workingDir );
+                var current = runMvm( [ "current" ] );
+                var list = runMvm( [ "list" ] );
+                var execution = runMvm( [ "exec", "--version" ] );
+
+                expect( use.exitCode ).toBe( 0 );
+                expect( use.output ).toInclude( "Now using MatchBox " & versions[ 1 ] );
+                expect( current.output ).toInclude( versions[ 1 ] );
+                expect( list.output ).toInclude( "(current)" );
+                expect( execution.exitCode ).toBe( 0 );
+                expect( execution.output & execution.error ).toInclude( versions[ 1 ] );
+            } );
+
             it( "defaults to .mvm under the user's home directory", function() {
                 var home = getTempDirectory() & "/mvm-default-home-" & createUUID();
                 directoryCreate( home );
