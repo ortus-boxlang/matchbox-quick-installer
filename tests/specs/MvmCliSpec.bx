@@ -2,6 +2,22 @@ class extends="testbox.system.BaseSpec" {
 
     function run() {
         describe( "MVM CLI", function() {
+            it( "defaults to .mvm under the user's home directory", function() {
+                var home = getTempDirectory() & "/mvm-default-home-" & createUUID();
+                directoryCreate( home );
+                var result = systemExecute(
+                    name=getsystemsetting( "MVM_BIN", "" ),
+                    arguments=[ "list" ],
+                    timeout=30,
+                    inheritEnvironment=false,
+                    environment={ HOME: home, USERPROFILE: home }
+                );
+
+                expect( result.exitCode ).toBe( 0 );
+                expect( directoryExists( home & "/.mvm/versions" ) ).toBeTrue();
+                directoryDelete( home, true );
+            } );
+
             it( "shows help when run without a command", function() {
                 var result = systemExecute(
                     name=getsystemsetting( "MVM_BIN", "" ),

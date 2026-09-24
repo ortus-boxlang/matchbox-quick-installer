@@ -1,5 +1,5 @@
 MVM_VERSION = "0.1.0";
-MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "user.home", "~" ) & "/.mvm" );
+MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
 MVM_VERSIONS = MVM_HOME & "/versions";
 MVM_CURRENT = MVM_HOME & "/current";
 
