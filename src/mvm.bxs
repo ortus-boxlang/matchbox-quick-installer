@@ -6,6 +6,30 @@ MVM_CURRENT = MVM_HOME & "/current";
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
 
+function isValidVersion( version ) {
+    return reFind( "^[A-Za-z0-9][A-Za-z0-9.+_-]*$", version ) == 1;
+}
+
+function useVersion( version ) {
+    version = trim( version );
+    if ( !len( version ) && fileExists( ".mvmrc" ) ) {
+        version = trim( fileRead( ".mvmrc" ) );
+    }
+    if ( !isValidVersion( version ) ) {
+        println( "Specify a valid MatchBox version or set .mvmrc." );
+        cliexit( 1 );
+    }
+
+    var versionDir = MVM_VERSIONS & "/" & version;
+    if ( !directoryExists( versionDir ) ) {
+        println( "MatchBox " & version & " is not installed. Run: mvm install " & version );
+        cliexit( 1 );
+    }
+
+    fileWrite( MVM_CURRENT, version & chr( 10 ) );
+    println( "Now using MatchBox " & version );
+}
+
 function showLocalVersion() {
     if ( !fileExists( ".mvmrc" ) ) {
         println( "No local MatchBox version is set." );
@@ -53,6 +77,9 @@ switch ( command ) {
     case "--help":
     case "-h":
         showHelp();
+        break;
+    case "use":
+        useVersion( arrayLen( args ) >= 2 ? args[ 2 ] : "" );
         break;
     case "local":
         if ( arrayLen( args ) < 2 || !len( trim( args[ 2 ] ) ) ) {

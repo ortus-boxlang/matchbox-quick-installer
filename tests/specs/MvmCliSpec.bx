@@ -39,6 +39,17 @@ class extends="testbox.system.BaseSpec" {
                 expect( fileRead( workingDir & "/.mvmrc" ).trim() ).toBe( "0.10.1" );
             } );
 
+            it( "rejects activating a version that is not installed", function() {
+                var result = systemExecute(
+                    name=getsystemsetting( "MVM_BIN", "" ),
+                    arguments=[ "use", "99.99.99" ],
+                    timeout=30
+                );
+
+                expect( result.exitCode ).toBe( 1 );
+                expect( result.output & result.error ).toInclude( "not installed" );
+            } );
+
             it( "reports when no MatchBox version is active", function() {
                 var result = systemExecute(
                     name=getsystemsetting( "MVM_BIN", "" ),
