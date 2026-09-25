@@ -1,4 +1,4 @@
-MVM_VERSION = "2.0.0-snapshot";
+MVM_VERSION = "2.0.1-snapshot";
 MVM_COMMIT = "unknown";
 MVM_BUILT_ON = "unknown";
 MVM_HOME = getsystemsetting( "MVM_HOME", getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "~" ) ) & "/.mvm" );
@@ -431,7 +431,7 @@ function updateMvmCommand() {
 }
 
 function checkMvmUpdateOnStartup( command ) {
-    if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update,completion", command ) ) return;
+    if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update,completion,doctor", command ) ) return;
     var binaryPath = MVM_HOME & "/bin/mvm" & ( isWindows() ? ".exe" : "" );
     if ( !fileExists( binaryPath ) ) return;
     var nowMillis = now().getTime();
@@ -556,94 +556,220 @@ function cleanCache() {
     println( "MVM download cache cleared." );
 }
 
-function bashCompletionStatus( fix=false ) {
-    var shellPath = getsystemsetting( "SHELL", "" );
-    var shellName = listLast( replace( shellPath, chr( 92 ), "/", "all" ), "/" ).lCase();
-    if ( isWindows() || shellName != "bash" ) return { supported: false, configured: false };
+function getShellInitScript( shellName ) {
+    var lines = [];
+    if ( shellName == "fish" ) {
+        arrayAppend( lines, 'set -q MVM_HOME; or set -gx MVM_HOME "$HOME/.mvm"' );
+        arrayAppend( lines, 'if not contains -- "$MVM_HOME/bin" $PATH' );
+        arrayAppend( lines, '    set -gx PATH "$MVM_HOME/bin" $PATH' );
+        arrayAppend( lines, 'end' );
+    } else if ( shellName == "powershell" ) {
+        arrayAppend( lines, "if (-not $env:MVM_HOME) { $env:MVM_HOME = Join-Path $HOME '.mvm' }" );
+        arrayAppend( lines, "$mvmBin = Join-Path $env:MVM_HOME 'bin'" );
+        arrayAppend( lines, "$pathEntries = $env:Path -split [IO.Path]::PathSeparator" );
+        arrayAppend( lines, 'if ($pathEntries -notcontains $mvmBin) { $env:Path = "$mvmBin$([IO.Path]::PathSeparator)$env:Path" }' );
+    } else {
+        arrayAppend( lines, 'export MVM_HOME="${MVM_HOME:-$HOME/.mvm}"' );
+        arrayAppend( lines, 'case ":$PATH:" in' );
+        arrayAppend( lines, '    *":$MVM_HOME/bin:"*) ;;' );
+        arrayAppend( lines, '    *) export PATH="$MVM_HOME/bin:$PATH" ;;' );
+        arrayAppend( lines, 'esac' );
+        arrayAppend( lines, 'if [ -n "${BASH_VERSION:-}" ] && [ -r "$MVM_HOME/completions/mvm.bash" ]; then . "$MVM_HOME/completions/mvm.bash"; fi' );
+    }
+    return arrayToList( lines, chr( 10 ) ) & chr( 10 );
+}
 
-    var osName = trim( systemExecute( "uname", [ "-s" ], 10 ).output ).lCase();
-    if ( osName != "linux" && osName != "darwin" ) return { supported: false, configured: false };
-
+function getShellProfileHook( shellName ) {
+    var lines = [ chr( 35 ) & " MVM shell initialization" ];
     var home = getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "" ) );
+    var defaultMvmHome = home & "/.mvm";
+    var configuredMvmHome = replace( MVM_HOME, chr( 92 ), "/", "all" );
+    var defaultMvmHomePath = replace( defaultMvmHome, chr( 92 ), "/", "all" );
+    var isDefaultMvmHome = shellName == "powershell"
+        ? configuredMvmHome.lCase() == defaultMvmHomePath.lCase()
+        : configuredMvmHome == defaultMvmHomePath;
+    if ( shellName == "fish" ) {
+        var fishFallback = isDefaultMvmHome ? '"$HOME/.mvm"' : "'" & replace( replace( MVM_HOME, chr( 92 ), chr( 92 ) & chr( 92 ), "all" ), "'", chr( 92 ) & "'", "all" ) & "'";
+        arrayAppend( lines, "set -q MVM_HOME; or set -gx MVM_HOME " & fishFallback );
+        arrayAppend( lines, 'test -s "$MVM_HOME/scripts/mvm-init.fish"; and source "$MVM_HOME/scripts/mvm-init.fish"' );
+    } else if ( shellName == "powershell" ) {
+        var powershellFallback = isDefaultMvmHome ? "Join-Path $HOME '.mvm'" : "'" & replace( MVM_HOME, "'", "''", "all" ) & "'";
+        arrayAppend( lines, "$env:MVM_PROFILE = $PROFILE" );
+        arrayAppend( lines, "if (-not $env:MVM_HOME) { $env:MVM_HOME = " & powershellFallback & " }" );
+        arrayAppend( lines, "$mvmInit = Join-Path $env:MVM_HOME 'scripts/mvm-init.ps1'" );
+        arrayAppend( lines, 'if (Test-Path -LiteralPath $mvmInit) { . $mvmInit }' );
+    } else {
+        if ( isDefaultMvmHome ) arrayAppend( lines, 'export MVM_HOME="${MVM_HOME:-$HOME/.mvm}"' );
+        else {
+            var shellFallback = "'" & replace( MVM_HOME, "'", "'" & chr( 92 ) & "''", "all" ) & "'";
+            arrayAppend( lines, "export MVM_HOME=${MVM_HOME:-" & shellFallback & "}" );
+        }
+        arrayAppend( lines, '[ -s "$MVM_HOME/scripts/mvm-init.sh" ] && . "$MVM_HOME/scripts/mvm-init.sh"' );
+    }
+    return arrayToList( lines, chr( 10 ) );
+}
+
+function updateShellProfile( profile, hook ) {
+    var contents = fileExists( profile ) ? fileRead( profile ) : "";
+    var lineEnding = find( chr( 13 ) & chr( 10 ), contents ) ? chr( 13 ) & chr( 10 ) : chr( 10 );
+    var marker = chr( 35 ) & " MVM";
+    var slash = chr( 92 );
+    var literalDollar = slash & chr( 36 );
+    var lineBreak = slash & "r?" & slash & "n";
+    var anyLine = "[^" & slash & "r" & slash & "n]*";
+    var homePattern = "(?:export MVM_HOME=" & anyLine & "|set -gx MVM_HOME " & anyLine & "|" & literalDollar & "env:MVM_HOME = " & anyLine & ")";
+    var pathPattern = "(?:export PATH=" & anyLine & "|set -gx PATH " & anyLine & "|if " & slash & "(" & literalDollar & "env:Path" & anyLine & ")";
+    var legacyPattern = "(?m)^" & marker & lineBreak & homePattern & lineBreak & pathPattern & lineBreak & "?";
+    contents = reReplace( contents, legacyPattern, "", "all" );
+    var completionPattern = "(?m)^" & marker & " bash completion" & lineBreak & anyLine & "MVM_HOME/completions/mvm" & slash & ".bash" & anyLine & lineBreak & "?";
+    contents = reReplace( contents, completionPattern, "", "all" );
+    var comparableContents = replace( contents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+    if ( !findNoCase( trim( hook ), comparableContents ) ) {
+        if ( len( trim( contents ) ) ) {
+            if ( right( contents, 1 ) != chr( 10 ) ) contents &= lineEnding;
+            contents &= lineEnding;
+        }
+        var profileHook = replace( hook, chr( 10 ), lineEnding, "all" );
+        contents &= profileHook & lineEnding;
+    }
+    var profileDirectory = getDirectoryFromPath( profile );
+    if ( !directoryExists( profileDirectory ) ) directoryCreate( profileDirectory );
+    fileWrite( profile, contents );
+}
+
+function shellInitializationStatus( fix=false ) {
+    var windows = isWindows();
+    var shellName = "";
+    var osName = "";
+    var home = getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "" ) );
+    if ( windows ) {
+        shellName = "powershell";
+        osName = "windows";
+    } else {
+        var shellPath = getsystemsetting( "SHELL", "" );
+        shellName = listLast( replace( shellPath, chr( 92 ), "/", "all" ), "/" ).lCase();
+        osName = trim( systemExecute( "uname", [ "-s" ], 10 ).output ).lCase();
+    }
     if ( !len( trim( home ) ) ) return { supported: false, configured: false };
-    var profile = home & "/.bashrc";
-    var loginReady = osName != "darwin";
-    if ( osName == "darwin" ) {
+
+    var profile = "";
+    var loginReady = true;
+    if ( windows ) {
+        profile = getsystemsetting( "MVM_PROFILE", "" );
+        if ( !len( profile ) ) {
+            var psProfileDirectory = findNoCase( "WindowsPowerShell", getsystemsetting( "PSModulePath", "" ) )
+                ? "WindowsPowerShell"
+                : "PowerShell";
+            profile = home & "/Documents/" & psProfileDirectory & "/Microsoft.PowerShell_profile.ps1";
+        }
+    } else if ( shellName == "bash" && osName == "darwin" ) {
+        profile = home & "/.bashrc";
         var loginProfile = home & "/.bash_profile";
         var loginContents = fileExists( loginProfile ) ? fileRead( loginProfile ) : "";
         var bridgeMarker = "MVM Bash login bridge";
         var bridged = findNoCase( bridgeMarker, loginContents ) > 0 && findNoCase( ".bashrc", loginContents ) > 0;
         if ( fileExists( loginProfile ) && !bridged ) {
             profile = loginProfile;
-            loginReady = true;
-        } else {
-            if ( fix && !bridged ) {
-                var bridgeLines = [];
-                if ( findNoCase( bridgeMarker, loginContents ) == 0 ) arrayAppend( bridgeLines, chr( 35 ) & " " & bridgeMarker );
-                if ( fileExists( home & "/.bash_login" ) && findNoCase( ".bash_login", loginContents ) == 0 ) {
-                    arrayAppend( bridgeLines, '[ -r "$HOME/.bash_login" ] && . "$HOME/.bash_login"' );
-                } else if ( fileExists( home & "/.profile" ) && findNoCase( ".profile", loginContents ) == 0 ) {
-                    arrayAppend( bridgeLines, '[ -r "$HOME/.profile" ] && . "$HOME/.profile"' );
-                }
-                var bashrcLine = '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"';
-                if ( findNoCase( bashrcLine, loginContents ) == 0 ) arrayAppend( bridgeLines, bashrcLine );
-                fileWrite( loginProfile, ( len( loginContents ) ? loginContents & chr( 10 ) : "" ) & arrayToList( bridgeLines, chr( 10 ) ) & chr( 10 ) );
-                bridged = true;
+        } else if ( fix && !bridged ) {
+            var bridgeLines = [];
+            if ( findNoCase( bridgeMarker, loginContents ) == 0 ) arrayAppend( bridgeLines, chr( 35 ) & " " & bridgeMarker );
+            if ( fileExists( home & "/.bash_login" ) && findNoCase( ".bash_login", loginContents ) == 0 ) {
+                arrayAppend( bridgeLines, '[ -r "$HOME/.bash_login" ] && . "$HOME/.bash_login"' );
+            } else if ( fileExists( home & "/.profile" ) && findNoCase( ".profile", loginContents ) == 0 ) {
+                arrayAppend( bridgeLines, '[ -r "$HOME/.profile" ] && . "$HOME/.profile"' );
             }
+            var bashrcLine = '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"';
+            if ( findNoCase( bashrcLine, loginContents ) == 0 ) arrayAppend( bridgeLines, bashrcLine );
+            fileWrite( loginProfile, ( len( loginContents ) ? loginContents & chr( 10 ) : "" ) & arrayToList( bridgeLines, chr( 10 ) ) & chr( 10 ) );
+            bridged = true;
+        }
+        if ( !fileExists( loginProfile ) || bridged ) {
             profile = home & "/.bashrc";
             loginReady = bridged;
         }
+    } else if ( !windows && shellName == "fish" ) {
+        profile = home & "/.config/fish/config.fish";
+    } else if ( !windows && shellName == "zsh" ) {
+        profile = home & "/.zshrc";
+    } else if ( !windows && shellName == "bash" ) {
+        profile = home & "/.bashrc";
+    } else if ( !windows ) {
+        profile = home & "/.profile";
     }
 
-    var completionFile = MVM_HOME & "/completions/mvm.bash";
+    var extension = shellName == "fish" ? "fish" : ( shellName == "powershell" ? "ps1" : "sh" );
+    var initFile = MVM_HOME & "/scripts/mvm-init." & extension;
+    var initScript = getShellInitScript( shellName );
+    var hook = getShellProfileHook( shellName );
     var profileContents = fileExists( profile ) ? fileRead( profile ) : "";
-    var quotedPath = "'" & replace( completionFile, "'", "'" & chr( 92 ) & "''", "all" ) & "'";
-    var registrationMarker = "MVM bash completion " & quotedPath;
-    var sourceLine = "[ -r " & quotedPath & " ] && . " & quotedPath;
-    var registered = findNoCase( "MVM_HOME/completions/mvm.bash", profileContents ) > 0 || findNoCase( sourceLine, profileContents ) > 0;
-    var current = fileExists( completionFile ) && trim( fileRead( completionFile ) ) == trim( getBashCompletionScript() );
+    var normalizedProfile = replace( profileContents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+    var registered = findNoCase( trim( hook ), normalizedProfile ) > 0;
+    var scriptCurrent = fileExists( initFile ) && trim( fileRead( initFile ) ) == trim( initScript );
+    var completionSupported = !windows && ( osName == "linux" || osName == "darwin" );
+    var completionFile = MVM_HOME & "/completions/mvm.bash";
+    var completionCurrent = !completionSupported || ( fileExists( completionFile ) && trim( fileRead( completionFile ) ) == trim( getBashCompletionScript() ) );
+
     if ( fix ) {
-        var completionDirectory = MVM_HOME & "/completions";
-        if ( !directoryExists( completionDirectory ) ) directoryCreate( completionDirectory );
-        fileWrite( completionFile, getBashCompletionScript() );
-        if ( !registered ) {
-            var markerLine = findNoCase( registrationMarker, profileContents ) > 0 ? "" : chr( 35 ) & " " & registrationMarker & chr( 10 );
-            fileWrite( profile, ( len( profileContents ) ? profileContents & chr( 10 ) : "" ) & markerLine & sourceLine & chr( 10 ) );
+        var scriptsDirectory = MVM_HOME & "/scripts";
+        if ( !directoryExists( scriptsDirectory ) ) directoryCreate( scriptsDirectory );
+        fileWrite( initFile, initScript );
+        if ( completionSupported ) {
+            var completionDirectory = MVM_HOME & "/completions";
+            if ( !directoryExists( completionDirectory ) ) directoryCreate( completionDirectory );
+            fileWrite( completionFile, getBashCompletionScript() );
         }
-        registered = true;
-        current = true;
+        updateShellProfile( profile, hook );
+        profileContents = fileRead( profile );
+        normalizedProfile = replace( profileContents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+        registered = findNoCase( trim( hook ), normalizedProfile ) > 0;
+        scriptCurrent = true;
+        completionCurrent = true;
     }
-    return { supported: true, configured: current && registered && loginReady, profile: profile, completionFile: completionFile };
+    return {
+        supported: true,
+        configured: scriptCurrent && registered && completionCurrent && loginReady,
+        profile: profile,
+        initFile: initFile,
+        shell: shellName,
+        completionSupported: completionSupported,
+        completionCurrent: completionCurrent,
+        completionFile: completionFile
+    };
 }
 
-function doctor( fixBashCompletions=false ) {
-    var bashCompletions = {};
+function doctor( fixShellInitialization=false ) {
+    var shellInitialization = {};
     try {
-        bashCompletions = bashCompletionStatus( fixBashCompletions );
+        shellInitialization = shellInitializationStatus( fixShellInitialization );
     } catch ( any e ) {
-        println( "Could not inspect or repair Bash completions: " & e.message );
+        println( "Could not inspect or repair shell initialization: " & e.message );
         cliexit( 1 );
     }
-    if ( fixBashCompletions && !bashCompletions.supported ) {
-        println( "Bash completion repair requires Bash on Linux or macOS." );
+    if ( fixShellInitialization && !shellInitialization.supported ) {
+        println( "Shell initialization repair requires a supported user shell." );
         cliexit( 1 );
     }
-    if ( bashCompletions.supported ) {
-        if ( fixBashCompletions ) println( "Bash completions installed at " & bashCompletions.completionFile & ". Restart your shell or source " & bashCompletions.profile & "." );
-        else if ( !bashCompletions.configured ) println( "Bash completions are missing or stale. Run 'mvm doctor --fix'." );
-        else println( "Bash completions are configured." );
+    if ( shellInitialization.supported ) {
+        if ( fixShellInitialization ) println( "MVM shell initialization installed at " & shellInitialization.initFile & ". Restart your shell or source " & shellInitialization.profile & "." );
+        else if ( !shellInitialization.configured ) println( "MVM shell initialization is missing or stale. Run 'mvm doctor --fix'." );
+        else println( "MVM shell initialization is configured." );
+        if ( shellInitialization.completionSupported ) {
+            if ( fixShellInitialization ) println( "Bash completions installed at " & shellInitialization.completionFile & "." );
+            else if ( !shellInitialization.completionCurrent ) println( "Bash completions are missing or stale. Run 'mvm doctor --fix'." );
+            else println( "Bash completions are configured." );
+        }
     }
 
     var windows = isWindows();
     var binDirectory = MVM_HOME & "/bin";
     var expectedBin = binDirectory;
-    if ( windows ) expectedBin = replace( expectedBin, "/", chr( 92 ), "all" ).lCase();
+    if ( windows ) expectedBin = replace( expectedBin, chr( 92 ), "/", "all" ).lCase();
     var path = getsystemsetting( "PATH", "" );
     var pathEntries = listToArray( path, windows ? ";" : ":" );
     var binOnPath = false;
     for ( pathEntry in pathEntries ) {
         pathEntry = trim( pathEntry );
-        if ( windows ) pathEntry = replace( pathEntry, "/", chr( 92 ), "all" ).lCase();
+        if ( windows ) pathEntry = replace( pathEntry, chr( 92 ), "/", "all" ).lCase();
         if ( pathEntry == expectedBin ) binOnPath = true;
     }
 
@@ -764,7 +890,7 @@ function showHelp() {
     println( "  use [version]         Activate a version or read .mvmrc" );
     println( "  local [version]       Set or show the current directory's .mvmrc" );
     println( "  current               Show the active MatchBox version" );
-    println( "  doctor [--fix]        Check MVM; --fix repairs Bash completions" );
+    println( "  doctor [--fix]        Check MVM; --fix repairs shell initialization" );
     println( "  clean                 Clear temporary download files" );
     println( "  list                  List installed versions" );
     println( "  list-remote           List versions available to install" );

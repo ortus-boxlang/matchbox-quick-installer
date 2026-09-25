@@ -87,6 +87,13 @@ class extends="testbox.system.BaseSpec" {
                 var newline = createObject( "java", "java.lang.System" ).lineSeparator();
                 directoryCreate( userHome );
                 directoryCreate( fakeBin );
+                fileWrite( userHome & "/.bashrc",
+                    "## MVM" & newline &
+                    "export MVM_HOME='" & mvmHome & "'" & newline &
+                    'export PATH="$MVM_HOME/bin:$PATH"' & newline &
+                    "## MVM bash completion" & newline &
+                    '[ -r "$MVM_HOME/completions/mvm.bash" ] && . "$MVM_HOME/completions/mvm.bash"' & newline
+                );
                 fileWrite( curlScript,
                     "##!/bin/sh" & newline &
                     "echo $2 > $MVM_CURL_LOG" & newline &
@@ -119,8 +126,9 @@ class extends="testbox.system.BaseSpec" {
                 var installer = systemExecute( argumentCollection=installOptions );
                 var repeatedInstall = systemExecute( argumentCollection=installOptions );
                 var completionFile = mvmHome & "/completions/mvm.bash";
+                var initFile = mvmHome & "/scripts/mvm-init.sh";
                 var profile = fileRead( userHome & "/.bashrc" );
-                var completionMarkers = reMatchNoCase( "MVM bash completion", profile );
+                var initMarkers = reMatchNoCase( "MVM shell initialization", profile );
                 var macUserHome = variables.mvmHome & "/mac-user";
                 var macMvmHome = macUserHome & "/custom-mvm";
                 directoryCreate( macUserHome );
@@ -143,7 +151,7 @@ class extends="testbox.system.BaseSpec" {
                 var macRepeatInstall = systemExecute( argumentCollection=macInstallOptions );
                 var bashProfile = fileRead( macUserHome & "/.bash_profile" );
                 var macBashrc = fileRead( macUserHome & "/.bashrc" );
-                var macCompletionMarkers = reMatchNoCase( "MVM bash completion", macBashrc );
+                var macInitMarkers = reMatchNoCase( "MVM shell initialization", macBashrc );
                 var loginShell = systemExecute(
                     name="bash",
                     arguments=[ "--login", "-c", "echo $MVM_HOME" ],
@@ -158,13 +166,18 @@ class extends="testbox.system.BaseSpec" {
                 expect( fileExists( completionFile ) ).toBeTrue();
                 expect( fileRead( completionFile ) ).toInclude( "complete -o default -F _mvm_completions mvm" );
                 expect( fileRead( curlLog ) ).toInclude( "/releases/download/v" & requestedVersion & "/mvm-linux-x64" );
-                expect( arrayLen( completionMarkers ) ).toBe( 1 );
+                expect( fileExists( initFile ) ).toBeTrue();
+                expect( fileRead( initFile ) ).toInclude( 'MVM_HOME/bin' );
+                expect( profile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
+                expect( profile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
+                expect( profile ).notToInclude( "## MVM bash completion" );
+                expect( arrayLen( initMarkers ) ).toBe( 1 );
                 expect( macInstaller.exitCode ).toBe( 0 );
                 expect( macRepeatInstall.exitCode ).toBe( 0 );
                 expect( bashProfile ).toInclude( "MVM Bash login bridge" );
                 expect( bashProfile ).toInclude( ".bashrc" );
-                expect( arrayLen( macCompletionMarkers ) ).toBe( 1 );
-                expect( loginShell.output ).toInclude( "/custom-mvm" );
+                expect( arrayLen( macInitMarkers ) ).toBe( 1 );
+                expect( loginShell.output ).toInclude( "/ignored" );
             } );
 
             it( "repairs Bash completions when doctor is asked to fix them", function() {
@@ -192,6 +205,7 @@ class extends="testbox.system.BaseSpec" {
                 };
                 var diagnostic = systemExecute( argumentCollection=options );
                 var completionFile = mvmHome & "/completions/mvm.bash";
+                var initFile = mvmHome & "/scripts/mvm-init.sh";
                 var profilePath = userHome & "/.bashrc";
                 var initiallyMissing = !fileExists( completionFile );
                 var profileUntouched = !fileExists( profilePath );
@@ -214,7 +228,7 @@ class extends="testbox.system.BaseSpec" {
                     environment={ HOME: userHome, MVM_HOME: mvmHome, PATH: getsystemsetting( "PATH", "" ) }
                 );
                 var profile = fileExists( profilePath ) ? fileRead( profilePath ) : "";
-                var completionMarkers = reMatchNoCase( "MVM bash completion", profile );
+                var initMarkers = reMatchNoCase( "MVM shell initialization", profile );
 
                 expect( chmod.exitCode ).toBe( 0 );
                 expect( diagnostic.exitCode ).toBe( 0 );
@@ -227,11 +241,86 @@ class extends="testbox.system.BaseSpec" {
                 expect( stalePreserved ).toBeTrue();
                 expect( repeatedFix.exitCode ).toBe( 0 );
                 expect( fileExists( completionFile ) ).toBeTrue();
+                expect( fileExists( initFile ) ).toBeTrue();
                 expect( fileRead( completionFile ) ).toInclude( "_mvm_completions" );
-                expect( arrayLen( completionMarkers ) ).toBe( 1 );
+                expect( profile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
+                expect( arrayLen( initMarkers ) ).toBe( 1 );
                 expect( macFix.exitCode ).toBe( 0 );
                 expect( bashProfile ).toInclude( "MVM Bash login bridge" );
                 expect( loginCompletion.output ).toInclude( "0.9.0" );
+            } );
+
+            it( "sets up Zsh and Fish through shell-specific init scripts", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var userHome = variables.mvmHome & "/other-shells";
+                var mvmHome = userHome & "/custom-mvm";
+                directoryCreate( userHome );
+                var options = {
+                    name: getsystemsetting( "MVM_BIN", "" ),
+                    arguments: [ "doctor", "--fix" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        MVM_HOME: mvmHome,
+                        SHELL: "/bin/zsh",
+                        PATH: mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var zshFix = systemExecute( argumentCollection=options );
+                var zshProfile = fileRead( userHome & "/.zshrc" );
+                var zshStartup = systemExecute(
+                    name: "bash",
+                    arguments: [ "--noprofile", "--norc", "-c", 'source "$HOME/.zshrc"; source "$HOME/.zshrc"; echo "$MVM_HOME"; echo "$PATH"' ],
+                    timeout: 10,
+                    environment: { HOME: userHome, MVM_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
+                );
+                options.environment.SHELL = "/usr/bin/fish";
+                options.environment.MVM_HOME = userHome & "/fish-mvm";
+                options.environment.PATH = options.environment.MVM_HOME & "/bin:" & getsystemsetting( "PATH", "" );
+                var fishFix = systemExecute( argumentCollection=options );
+                var fishInit = options.environment.MVM_HOME & "/scripts/mvm-init.fish";
+                var fishProfile = fileRead( userHome & "/.config/fish/config.fish" );
+                var windowsMvmHome = userHome & "/windows-mvm";
+                var windowsProfile = userHome & "/Documents/PowerShell/Microsoft.PowerShell_profile.ps1";
+                var newline = createObject( "java", "java.lang.System" ).lineSeparator();
+                directoryCreate( userHome & "/Documents/PowerShell" );
+                fileWrite( windowsProfile,
+                    "## MVM" & newline &
+                    "$env:MVM_HOME = 'old-home'" & newline &
+                    "if ($env:Path -notlike ('old-bin' + ';*')) { $env:Path = 'old-bin' + ';' + $env:Path }" & newline
+                );
+                var windowsFix = systemExecute(
+                    name: getsystemsetting( "MVM_BIN", "" ),
+                    arguments: [ "doctor", "--fix" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        USERPROFILE: userHome,
+                        OS: "Windows_NT",
+                        MVM_HOME: windowsMvmHome,
+                        MVM_PROFILE: windowsProfile,
+                        PATH: windowsMvmHome & "/bin"
+                    }
+                );
+                var windowsInit = windowsMvmHome & "/scripts/mvm-init.ps1";
+                var powershellProfile = fileRead( windowsProfile );
+
+                expect( zshFix.exitCode ).toBe( 0 );
+                expect( zshStartup.exitCode ).toBe( 0 );
+                expect( zshStartup.output ).toInclude( mvmHome );
+                expect( arrayLen( reMatchNoCase( "custom-mvm/bin", zshStartup.output ) ) ).toBe( 1 );
+                expect( zshProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
+                expect( zshProfile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
+                expect( fishFix.exitCode ).toBe( 0 );
+                expect( fileExists( fishInit ) ).toBeTrue();
+                expect( fileRead( fishInit ) ).toInclude( 'set -gx PATH "$MVM_HOME/bin" $PATH' );
+                expect( fishProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.fish' );
+                expect( windowsFix.exitCode ).toBe( 0 );
+                expect( fileExists( windowsInit ) ).toBeTrue();
+                expect( fileRead( windowsInit ) ).toInclude( '$env:Path' );
+                expect( powershellProfile ).toInclude( "scripts/mvm-init.ps1" );
+                expect( powershellProfile ).notToInclude( "-notlike" );
             } );
 
             it( "asks before updating MVM on interactive startup", function() {

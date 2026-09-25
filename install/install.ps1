@@ -39,19 +39,15 @@ if ($pathEntries -notcontains $installDir) {
 $env:MVM_HOME = $mvmHome
 if (($env:Path -split ";") -notcontains $installDir) { $env:Path = "$installDir;$env:Path" }
 
-if ($PROFILE) {
-    $profileDir = Split-Path -Parent $PROFILE
-    New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-    if (-not (Test-Path $PROFILE) -or -not (Select-String -Path $PROFILE -SimpleMatch "# MVM" -Quiet)) {
-        $homeLiteral = "'" + $mvmHome.Replace("'", "''") + "'"
-        $binLiteral = "'" + $installDir.Replace("'", "''") + "'"
-        @"
-# MVM
-`$env:MVM_HOME = $homeLiteral
-if (`$env:Path -notlike (`$binLiteral + ';*')) { `$env:Path = `$binLiteral + ';' + `$env:Path }
-"@ | Add-Content -Path $PROFILE
-    }
+$previousMvmProfile = $env:MVM_PROFILE
+$env:MVM_PROFILE = $PROFILE
+try {
+    & $binary doctor --fix
+    if ($LASTEXITCODE -ne 0) { throw "MVM shell initialization failed with exit code $LASTEXITCODE." }
+} finally {
+    if ($null -eq $previousMvmProfile) { Remove-Item Env:MVM_PROFILE -ErrorAction SilentlyContinue }
+    else { $env:MVM_PROFILE = $previousMvmProfile }
 }
 
 Write-Host "MVM installed at $binary"
-Write-Host "Restart PowerShell to use mvm in new terminals."
+Write-Host "Restart PowerShell to use MVM in new terminals."
