@@ -40,6 +40,12 @@ mvm use
 
 `mvm update` updates MVM itself (stable builds track stable releases; snapshot builds track snapshots). `mvm version` shows the version, source commit, and UTC build time. In interactive terminals, MVM checks daily for a newer release in its channel and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH, shell initialization, and the active installation; it also reports Bash completion status on Linux/macOS. `mvm doctor --fix` repairs shell initialization and Bash completions. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
 
+### MatchBox snapshots and verified downloads
+
+Use `mvm install snapshot` and `mvm use snapshot` for the rolling development build. Running `install snapshot` again refreshes it when the published build ID or revision changes; an unchanged build is skipped unless `--force` is supplied. MVM keeps the `snapshot` installation slot and records its actual version, build ID, and revision in `version.json`. Version listings and `current` display that build identity.
+
+Downloads must have published `version.json` metadata and a matching SHA-256 checksum before they replace an installation. Historical releases without this metadata cannot be newly installed. Verification uses Linux `sha256sum`, macOS `shasum`, or Windows PowerShell `Get-FileHash`.
+
 ## Build and test
 
 Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:

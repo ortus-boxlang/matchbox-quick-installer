@@ -13,6 +13,7 @@ if [[ ! -x "$ROOT/testbox/run" ]]; then
     box install
 fi
 ./build.sh
+python3 tests/integration/test_release_install.py
 rm -rf "$REPORT_DIR"
 MVM_BIN="$ROOT/build/mvm" ./testbox/run \
     --directory=tests.specs \
