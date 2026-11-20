@@ -400,9 +400,16 @@ class extends="testbox.system.BaseSpec" {
                 fileWrite( mvmBinary, "##!/bin/sh" & newline & "echo 'MVM version: 0.0.0'" & newline );
                 fileWrite( variables.mvmHome & "/update-check", "checked" );
                 var chmod = systemExecute( name="chmod", arguments=[ "+x", mvmBinary ], timeout=10 );
+                var kernelName = trim( systemExecute( name="uname", arguments=[ "-s" ], timeout=10 ).output ).lCase();
+                var currentCommand = kernelName.contains( "darwin" )
+                    ? 'echo n | script -q /dev/null "$MVM_BIN" current'
+                    : "echo n | script -qec '$MVM_BIN current' /dev/null";
+                var completionCommand = kernelName.contains( "darwin" )
+                    ? 'script -q /dev/null "$MVM_BIN" completion bash'
+                    : "script -qec '$MVM_BIN completion bash' /dev/null";
                 var startup = {
                     name: "/bin/sh",
-                    arguments: [ "-c", "echo n | script -qec '$MVM_BIN current' /dev/null" ],
+                    arguments: [ "-c", currentCommand ],
                     timeout: 30,
                     environment: {
                         MVM_HOME: variables.mvmHome,
@@ -412,7 +419,7 @@ class extends="testbox.system.BaseSpec" {
                 };
                 var completionStartup = {
                     name: "/bin/sh",
-                    arguments: [ "-c", "script -qec '$MVM_BIN completion bash' /dev/null" ],
+                    arguments: [ "-c", completionCommand ],
                     timeout: 30,
                     environment: startup.environment
                 };
