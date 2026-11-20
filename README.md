@@ -64,7 +64,7 @@ Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:
 ./tests/integration/run.sh
 ```
 
-The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases. CI also runs the suite across Linux, macOS, and Windows runners plus a container smoke suite on Debian, Ubuntu, Fedora, and Arch; MVM's native binary is glibc-linked, so Alpine is not part of the container matrix.
+The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases. CI also runs the suite across Linux, macOS, and Windows runners plus a container smoke suite on Debian, Ubuntu, Fedora, and Arch; MVM's native binary is glibc-linked, so Alpine is not part of the container matrix. Set `GITHUB_TOKEN` (or `GH_TOKEN`) when running the suite against live GitHub releases to avoid unauthenticated API rate limits.
 
 ## Releases
 

@@ -17,10 +17,13 @@ if ( !directoryExists( MVM_CACHE ) ) directoryCreate( MVM_CACHE );
 
 function githubJson( url, failFast=true, timeout=30 ) {
     var response = {};
+    var headers = { "User-Agent": "MVM" };
+    var githubToken = getsystemsetting( "GITHUB_TOKEN", getsystemsetting( "GH_TOKEN", "" ) );
+    if ( len( trim( githubToken ) ) ) headers[ "Authorization" ] = "Bearer " & githubToken;
     try {
         response = jsonDeserialize( http({
             url: url,
-            headers: { "User-Agent": "MVM" },
+            headers: headers,
             timeout: timeout
         }).get() );
     } catch ( any e ) {
