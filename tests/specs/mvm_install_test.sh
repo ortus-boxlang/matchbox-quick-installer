@@ -55,11 +55,15 @@ INIT_FILE="$MVM_HOME_DIR/scripts/mvm-init.sh"
 PROFILE_FILE="$HOME_DIR/.bashrc"
 [ -f "$INIT_FILE" ] || fail "generated init script exists"
 [ -f "$PROFILE_FILE" ] || fail "shell profile was updated"
+for completion in mvm.bash mvm.zsh mvm.fish; do
+    [ -f "$MVM_HOME_DIR/completions/$completion" ] || fail "$completion was installed"
+done
 if [ -f "$INIT_FILE" ]; then
     INIT_CONTENTS="$(cat "$INIT_FILE")"
     assert_contains 'MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"' "$INIT_CONTENTS" "init declares MATCHBOX_HOME"
     assert_contains 'export MATCHBOX_HOME' "$INIT_CONTENTS" "init exports MATCHBOX_HOME"
     assert_contains '$MATCHBOX_HOME/bin' "$INIT_CONTENTS" "init adds MATCHBOX_HOME/bin"
+    assert_contains 'completions/mvm.bash' "$INIT_CONTENTS" "init loads Bash completions"
 fi
 if [ -f "$PROFILE_FILE" ]; then
     assert_contains '$MVM_HOME/scripts/mvm-init.sh' "$(cat "$PROFILE_FILE")" "profile sources MVM init"

@@ -10,6 +10,8 @@ MVM_CURRENT = MVM_HOME & "/current";
 MATCHBOX_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox";
 MVM_GITHUB_API = "https://api.github.com/repos/ortus-boxlang/matchbox-quick-installer";
 MVM_UPDATE_CHECK = MVM_HOME & "/update-check";
+MVM_COMMANDS = "install update use local current doctor clean list ls list-remote remove uninstall exec run tui version completion help";
+MVM_COMPLETION_SHELLS = "bash,zsh,fish";
 
 if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
@@ -1017,6 +1019,7 @@ function getShellInitScript( shellName ) {
         arrayAppend( lines, 'if not contains -- "$MATCHBOX_HOME/bin" $PATH' );
         arrayAppend( lines, '    set -gx PATH "$MATCHBOX_HOME/bin" $PATH' );
         arrayAppend( lines, 'end' );
+        arrayAppend( lines, 'test -s "$MVM_HOME/completions/mvm.fish"; and source "$MVM_HOME/completions/mvm.fish"' );
     } else if ( shellName == "powershell" ) {
         arrayAppend( lines, "if (-not $env:MVM_HOME) { $env:MVM_HOME = Join-Path $HOME '.mvm' }" );
         arrayAppend( lines, "$mvmBin = Join-Path $env:MVM_HOME 'bin'" );
@@ -1037,7 +1040,14 @@ function getShellInitScript( shellName ) {
         arrayAppend( lines, '    *":$MATCHBOX_HOME/bin:"*) ;;' );
         arrayAppend( lines, '    *) export PATH="$MATCHBOX_HOME/bin:$PATH" ;;' );
         arrayAppend( lines, 'esac' );
-        arrayAppend( lines, 'if [ -n "${BASH_VERSION:-}" ] && [ -r "$MVM_HOME/completions/mvm.bash" ]; then . "$MVM_HOME/completions/mvm.bash"; fi' );
+        if ( shellName == "bash" ) {
+            arrayAppend( lines, 'if [ -n "${BASH_VERSION:-}" ] && [ -r "$MVM_HOME/completions/mvm.bash" ]; then . "$MVM_HOME/completions/mvm.bash"; fi' );
+        } else if ( shellName == "zsh" ) {
+            arrayAppend( lines, 'if [ -n "${ZSH_VERSION:-}" ]; then' );
+            arrayAppend( lines, '    if ! command -v compdef >/dev/null 2>&1; then autoload -U +X compinit && compinit -u; fi' );
+            arrayAppend( lines, '    [ -r "$MVM_HOME/completions/mvm.zsh" ] && . "$MVM_HOME/completions/mvm.zsh"' );
+            arrayAppend( lines, 'fi' );
+        }
     }
     return arrayToList( lines, char( 10 ) ) & char( 10 );
 }
@@ -1190,9 +1200,12 @@ function shellInitializationStatus( fix=false ) {
     var normalizedProfile = replace( profileContents, char( 13 ) & char( 10 ), char( 10 ), "all" );
     var registered = findNoCase( trim( hook ), normalizedProfile ) > 0;
     var scriptCurrent = fileExists( initFile ) && trim( fileRead( initFile ) ) == trim( initScript );
-    var completionSupported = !windows && ( osName == "linux" || osName == "darwin" );
-    var completionFile = MVM_HOME & "/completions/mvm.bash";
-    var completionCurrent = !completionSupported || ( fileExists( completionFile ) && trim( fileRead( completionFile ) ) == trim( getBashCompletionScript() ) );
+    var completionEnabled = !windows && listFindNoCase( MVM_COMPLETION_SHELLS, shellName ) > 0 && ( osName == "linux" || osName == "darwin" );
+    var completionShell = completionEnabled ? shellName.lCase() : "";
+    var completionSupported = len( completionShell ) > 0;
+    var completionFile = completionSupported ? MVM_HOME & "/completions/mvm." & completionShell : "";
+    var completionScript = completionSupported ? getCompletionScript( completionShell ) : "";
+    var completionCurrent = !completionSupported || ( fileExists( completionFile ) && trim( fileRead( completionFile ) ) == trim( completionScript ) );
 
     if ( fix ) {
         var scriptsDirectory = MVM_HOME & "/scripts";
@@ -1201,7 +1214,9 @@ function shellInitializationStatus( fix=false ) {
         if ( completionSupported ) {
             var completionDirectory = MVM_HOME & "/completions";
             if ( !directoryExists( completionDirectory ) ) directoryCreate( completionDirectory );
-            fileWrite( completionFile, getBashCompletionScript() );
+            fileWrite( completionDirectory & "/mvm.bash", getBashCompletionScript() );
+            fileWrite( completionDirectory & "/mvm.zsh", getZshCompletionScript() );
+            fileWrite( completionDirectory & "/mvm.fish", getFishCompletionScript() );
         }
         updateShellProfile( profile, hook );
         profileContents = fileRead( profile );
@@ -1217,6 +1232,7 @@ function shellInitializationStatus( fix=false ) {
         initFile: initFile,
         shell: shellName,
         completionSupported: completionSupported,
+        completionShell: completionShell,
         completionCurrent: completionCurrent,
         completionFile: completionFile
     };
@@ -1246,9 +1262,10 @@ function doctor( fixShellInitialization=false ) {
         else if ( !shellInitialization.configured ) println( "MVM shell initialization is missing or stale. Run 'mvm doctor --fix'." );
         else println( "MVM shell initialization is configured." );
         if ( shellInitialization.completionSupported ) {
-            if ( fixShellInitialization ) println( "Bash completions installed at " & shellInitialization.completionFile & "." );
-            else if ( !shellInitialization.completionCurrent ) println( "Bash completions are missing or stale. Run 'mvm doctor --fix'." );
-            else println( "Bash completions are configured." );
+            var completionLabel = shellInitialization.completionShell == "fish" ? "Fish" : ( shellInitialization.completionShell == "zsh" ? "Zsh" : "Bash" );
+            if ( fixShellInitialization ) println( completionLabel & " completions installed at " & shellInitialization.completionFile & "." );
+            else if ( !shellInitialization.completionCurrent ) println( completionLabel & " completions are missing or stale. Run 'mvm doctor --fix'." );
+            else println( completionLabel & " completions are configured." );
         }
     }
 
@@ -1348,54 +1365,207 @@ function execCurrentVersion( execArguments, cliOptions ) {
 }
 
 /**
+ * Return the command descriptions shared by all completion scripts.
+ *
+ * @return Array of "command:description" entries.
+ */
+function getMvmCommandDescriptions() {
+    return [
+        "install:Install a MatchBox version",
+        "update:Update the MVM executable",
+        "use:Activate a version or read .mvmrc",
+        "local:Set or show the local .mvmrc version",
+        "current:Show the active MatchBox version",
+        "doctor:Check MVM health",
+        "clean:Clear temporary downloads",
+        "list:List installed versions",
+        "ls:List installed versions",
+        "list-remote:List versions available to install",
+        "remove:Remove an installed version",
+        "uninstall:Remove an installed version",
+        "exec:Run MatchBox with the active version",
+        "run:Run MatchBox with the active version",
+        "tui:Browse and activate versions",
+        "version:Show MVM version information",
+        "completion:Print a shell completion script",
+        "help:Show help"
+    ];
+}
+
+/**
  * Return the Bash completion script for MVM commands.
  *
  * @return Bash script.
  */
 function getBashCompletionScript() {
-    var quote = char( 34 );
     var lines = [];
-    arrayAppend( lines, "_mvm_completions() {" );
-    arrayAppend( lines, "  local cur=${COMP_WORDS[COMP_CWORD]}" );
-    arrayAppend( lines, "  local command=${COMP_WORDS[1]}" );
-    arrayAppend( lines, "  local version" );
-    arrayAppend( lines, "  if [[ $COMP_CWORD == 1 ]]; then" );
-    arrayAppend( lines, "    COMPREPLY=( $(compgen -W 'install update use local current doctor clean list ls list-remote remove uninstall exec run tui version completion help' -- " & quote & "$cur" & quote & ") )" );
-    arrayAppend( lines, "    return" );
-    arrayAppend( lines, "  fi" );
-    arrayAppend( lines, "  [[ $COMP_CWORD == 2 ]] || return" );
-    arrayAppend( lines, "  case $command in" );
-    arrayAppend( lines, "    install)" );
-    arrayAppend( lines, "      if [[ $cur == -* ]]; then" );
-    arrayAppend( lines, "        COMPREPLY=( $(compgen -W '--force' -- " & quote & "$cur" & quote & ") )" );
-    arrayAppend( lines, "      else" );
-    arrayAppend( lines, "        COMPREPLY=( $(compgen -W 'latest' -- " & quote & "$cur" & quote & ") )" );
-    arrayAppend( lines, "      fi" );
-    arrayAppend( lines, "      ;;" );
-    arrayAppend( lines, "    use|local|remove)" );
-    arrayAppend( lines, "      local -a versions=()" );
-    arrayAppend( lines, "      for version in " & quote & "${MVM_HOME:-$HOME/.mvm}/versions/" & quote & "*; do" );
-    arrayAppend( lines, "        [[ -d $version ]] && versions+=( " & quote & "${version" & char( 35 ) & char( 35 ) & "*/}" & quote & " )" );
-    arrayAppend( lines, "      done" );
-    arrayAppend( lines, "      COMPREPLY=( $(compgen -W " & quote & "${versions[*]}" & quote & " -- " & quote & "$cur" & quote & ") )" );
-    arrayAppend( lines, "      ;;" );
-    arrayAppend( lines, "    doctor) COMPREPLY=( $(compgen -W '--fix' -- " & quote & "$cur" & quote & ") ) ;;" );
-    arrayAppend( lines, "    completion) COMPREPLY=( $(compgen -W 'bash' -- " & quote & "$cur" & quote & ") ) ;;" );
-    arrayAppend( lines, "  esac" );
-    arrayAppend( lines, "}" );
-    arrayAppend( lines, "if [[ $- == *i* ]]; then" );
-    arrayAppend( lines, "  complete -o default -F _mvm_completions mvm" );
-    arrayAppend( lines, "fi" );
+    arrayAppend( lines, char( 35 ) & ' Bash completion for MVM' );
+    arrayAppend( lines, '_mvm_versions() {' );
+    arrayAppend( lines, '  local version' );
+    arrayAppend( lines, '  local -a versions=()' );
+    arrayAppend( lines, '  for version in "${MVM_HOME:-$HOME/.mvm}/versions/"*; do' );
+    arrayAppend( lines, '    [[ -d $version ]] || continue' );
+    arrayAppend( lines, '    versions+=( "$(basename "$version")" )' );
+    arrayAppend( lines, '  done' );
+    arrayAppend( lines, '  [[ -z "${versions[*]}" ]] && return 0' );
+    arrayAppend( lines, '  printf "%s\n" "${versions[@]}"' );
+    arrayAppend( lines, '}' );
+    arrayAppend( lines, '_mvm_completions() {' );
+    arrayAppend( lines, '  local cur="${COMP_WORDS[COMP_CWORD]}"' );
+    arrayAppend( lines, '  local command="${COMP_WORDS[1]:-}"' );
+    arrayAppend( lines, '  if (( COMP_CWORD == 1 )); then' );
+    arrayAppend( lines, '    COMPREPLY=( $(compgen -W "' & MVM_COMMANDS & '" -- "$cur") )' );
+    arrayAppend( lines, '    return 0' );
+    arrayAppend( lines, '  fi' );
+    arrayAppend( lines, '  (( COMP_CWORD == 2 )) || return 0' );
+    arrayAppend( lines, '  case $command in' );
+    arrayAppend( lines, '    install)' );
+    arrayAppend( lines, '      if [[ $cur == -* ]]; then' );
+    arrayAppend( lines, '        COMPREPLY=( $(compgen -W "--force" -- "$cur") )' );
+    arrayAppend( lines, '      else' );
+    arrayAppend( lines, '        COMPREPLY=( $(compgen -W "latest snapshot" -- "$cur") )' );
+    arrayAppend( lines, '      fi' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    use|local)' );
+    arrayAppend( lines, '      COMPREPLY=( $(compgen -W "latest snapshot $(_mvm_versions)" -- "$cur") )' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    remove|uninstall)' );
+    arrayAppend( lines, '      COMPREPLY=( $(compgen -W "$(_mvm_versions)" -- "$cur") )' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    doctor) COMPREPLY=( $(compgen -W "--fix" -- "$cur") ) ;;' );
+    arrayAppend( lines, '    completion) COMPREPLY=( $(compgen -W "' & replace( MVM_COMPLETION_SHELLS, ",", " ", "all" ) & '" -- "$cur") ) ;;' );
+    arrayAppend( lines, '  esac' );
+    arrayAppend( lines, '}' );
+    arrayAppend( lines, 'complete -o default -F _mvm_completions mvm' );
     return arrayToList( lines, char( 10 ) ) & char( 10 );
 }
 
 /**
- * Print the Bash completion script.
+ * Return the Zsh completion script for MVM commands.
+ *
+ * @return Zsh script.
+ */
+function getZshCompletionScript() {
+    var quote = char( 34 );
+    var lines = [];
+    arrayAppend( lines, char( 35 ) & 'compdef mvm' );
+    arrayAppend( lines, char( 35 ) & ' Zsh completion for MVM' );
+    arrayAppend( lines, '_mvm_installed_versions() {' );
+    arrayAppend( lines, '  local dir="${MVM_HOME:-$HOME/.mvm}/versions"' );
+    arrayAppend( lines, '  local version' );
+    arrayAppend( lines, '  [[ -d $dir ]] || return 0' );
+    arrayAppend( lines, '  for version in "$dir"/*(N); do' );
+    arrayAppend( lines, '    [[ -d $version ]] || continue' );
+    arrayAppend( lines, '    compadd -- "${version:t}"' );
+    arrayAppend( lines, '  done' );
+    arrayAppend( lines, '}' );
+    arrayAppend( lines, '_mvm() {' );
+    arrayAppend( lines, '  local -a commands' );
+    arrayAppend( lines, '  commands=(' );
+    for ( var description in getMvmCommandDescriptions() ) {
+        arrayAppend( lines, '    ' & quote & description & quote );
+    }
+    arrayAppend( lines, '  )' );
+    arrayAppend( lines, '  if (( CURRENT == 2 )); then' );
+    arrayAppend( lines, '    _describe -t commands "mvm command" commands' );
+    arrayAppend( lines, '    compadd -- --help' );
+    arrayAppend( lines, '    return 0' );
+    arrayAppend( lines, '  fi' );
+    arrayAppend( lines, '  case $words[2] in' );
+    arrayAppend( lines, '    install)' );
+    arrayAppend( lines, '      if [[ $words[CURRENT] == -* ]]; then' );
+    arrayAppend( lines, '        compadd -- --force' );
+    arrayAppend( lines, '      else' );
+    arrayAppend( lines, '        compadd -- latest snapshot' );
+    arrayAppend( lines, '      fi' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    use|local)' );
+    arrayAppend( lines, '      compadd -- latest snapshot' );
+    arrayAppend( lines, '      _mvm_installed_versions' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    remove|uninstall)' );
+    arrayAppend( lines, '      _mvm_installed_versions' );
+    arrayAppend( lines, '      ;;' );
+    arrayAppend( lines, '    doctor) compadd -- --fix ;;' );
+    arrayAppend( lines, '    completion) compadd -- ' & replace( MVM_COMPLETION_SHELLS, ",", " ", "all" ) & ' ;;' );
+    arrayAppend( lines, '  esac' );
+    arrayAppend( lines, '}' );
+    arrayAppend( lines, '(( $+functions[compdef] )) && compdef _mvm mvm' );
+    return arrayToList( lines, char( 10 ) ) & char( 10 );
+}
+
+/**
+ * Return the Fish completion script for MVM commands.
+ *
+ * @return Fish script.
+ */
+function getFishCompletionScript() {
+    var quote = char( 34 );
+    var lines = [];
+    arrayAppend( lines, char( 35 ) & ' Fish completion for MVM' );
+    arrayAppend( lines, 'function __mvm_versions' );
+    arrayAppend( lines, '  set -l dir (set -q MVM_HOME; and echo $MVM_HOME; or echo $HOME/.mvm)/versions' );
+    arrayAppend( lines, '  test -d $dir; or return' );
+    arrayAppend( lines, '  for mvmVersion in $dir/*' );
+    arrayAppend( lines, '    test -d $mvmVersion; or continue' );
+    arrayAppend( lines, '    basename $mvmVersion' );
+    arrayAppend( lines, '  end' );
+    arrayAppend( lines, 'end' );
+    arrayAppend( lines, 'if not set -q __mvm_completions_loaded' );
+    arrayAppend( lines, '  set -g __mvm_completions_loaded 1' );
+    arrayAppend( lines, '  set -l commands ' & MVM_COMMANDS );
+    arrayAppend( lines, '  complete -c mvm -f' );
+    for ( var description in getMvmCommandDescriptions() ) {
+        var parts = listToArray( description, ":" );
+        arrayAppend( lines, '  complete -c mvm -n ' & quote & 'not __fish_seen_subcommand_from $commands' & quote & ' -a ' & parts[1] & ' -d ' & quote & parts[2] & quote & ';' );
+    }
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & 'not __fish_seen_subcommand_from $commands' & quote & ' -s h -l help -d ' & quote & 'Show help' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from install' & quote & ' -a ' & quote & 'latest snapshot' & quote & ' -d ' & quote & 'Release channel' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from install' & quote & ' -l force -d ' & quote & 'Reinstall an existing version' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from use local' & quote & ' -a ' & quote & 'latest snapshot' & quote & ' -d ' & quote & 'Release channel' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from use local remove uninstall' & quote & ' -a ' & quote & '(__mvm_versions)' & quote & ' -d ' & quote & 'Installed version' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from doctor' & quote & ' -l fix -d ' & quote & 'Repair shell initialization' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from completion' & quote & ' -a ' & quote & replace( MVM_COMPLETION_SHELLS, ",", " ", "all" ) & quote & ' -d ' & quote & 'Shell' & quote & ';' );
+    arrayAppend( lines, '  complete -c mvm -n ' & quote & '__fish_seen_subcommand_from exec run' & quote & ' -F' );
+    arrayAppend( lines, 'end' );
+    return arrayToList( lines, char( 10 ) ) & char( 10 );
+}
+
+/**
+ * Return the completion script for a shell.
+ *
+ * @param shellName Shell identifier.
+ *
+ * @return Completion script, or an empty string for unsupported shells.
+ */
+function getCompletionScript( shellName ) {
+    var normalizedShell = trim( shellName ).lCase();
+    switch ( normalizedShell ) {
+        case "bash":
+            return getBashCompletionScript();
+        case "zsh":
+            return getZshCompletionScript();
+        case "fish":
+            return getFishCompletionScript();
+        default:
+            return "";
+    }
+}
+
+/**
+ * Print the completion script for a shell.
+ *
+ * @param shellName Shell identifier.
  *
  * @return Nothing.
  */
-function showBashCompletion() {
-    print( getBashCompletionScript() );
+function showCompletion( shellName ) {
+    var script = getCompletionScript( shellName );
+    if ( !len( script ) ) {
+        println( "Usage: mvm completion <" & replace( MVM_COMPLETION_SHELLS, ",", "|", "all" ) & ">" );
+        cliexit( 1 );
+    }
+    print( script );
 }
 
 /**
@@ -1422,7 +1592,7 @@ function showHelp() {
     println( "  run <args...>         Alias for exec" );
     println( "  tui                   Browse, install, and activate versions" );
     println( "  version               Show MVM version" );
-    println( "  completion bash       Print Bash completion script" );
+    println( "  completion <shell>    Print completion script (bash, zsh, or fish)" );
     println( "  help                  Show this help" );
     println( "" );
     println( "  install <version> --force  Reinstall an existing version" );
@@ -1489,11 +1659,7 @@ switch ( command ) {
         println( "Built on: " & MVM_BUILT_ON );
         break;
     case "completion":
-        if ( arrayLen( args ) < 2 || args[ 2 ].lCase() != "bash" ) {
-            println( "Usage: mvm completion bash" );
-            cliexit( 1 );
-        }
-        showBashCompletion();
+        showCompletion( arrayLen( args ) >= 2 ? args[ 2 ] : "" );
         break;
     case "list":
     case "ls":

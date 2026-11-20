@@ -24,7 +24,7 @@ On a real terminal the installer shows a branded plan and asks whether to instal
 curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | bash -s -- --yes
 ```
 
-The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. That script exports both `MVM_HOME` and `MATCHBOX_HOME` and adds both `bin` directories to `PATH`. Bash completions are also installed for commands and installed versions. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and Bash completions.
+The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. That script exports both `MVM_HOME` and `MATCHBOX_HOME` and adds both `bin` directories to `PATH`. Completions for commands, release channels, installed versions, and flags are installed for Bash, Zsh, and Fish. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and completions.
 
 ### Environment variables
 
@@ -53,7 +53,15 @@ mvm local latest
 mvm use
 ```
 
-`mvm update` updates MVM itself (stable builds track stable releases; snapshot builds track snapshots). `mvm version` shows the version, source commit, and UTC build time. In interactive terminals, MVM checks daily for a newer release in its channel and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH, shell initialization, and the active installation; it also reports Bash completion status on Linux/macOS. `mvm doctor --fix` repairs shell initialization and Bash completions. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+`mvm update` updates MVM itself (stable builds track stable releases; snapshot builds track snapshots). `mvm version` shows the version, source commit, and UTC build time. In interactive terminals, MVM checks daily for a newer release in its channel and asks before updating. To update MatchBox, run `mvm install latest` and `mvm use latest`. `mvm clean` clears temporary downloads without removing installed versions. `mvm doctor` checks PATH, shell initialization, and the active installation; it also reports shell-specific completion status on Linux/macOS. `mvm doctor --fix` repairs shell initialization and completions. Other commands include `list-remote`, `current`, and `remove <version>`. `mvm help` shows the full CLI.
+
+### Shell completions
+
+Completions are loaded automatically from the generated shell initialization. To inspect a script directly, run:
+
+```sh
+mvm completion bash   # or zsh, fish
+```
 
 ### MatchBox snapshots and verified downloads
 

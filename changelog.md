@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Completions for Bash, Zsh, and Fish covering commands, release channels, installed versions, flags, and shell names. They are installed by shell initialization, repaired by `mvm doctor --fix`, and available directly via `mvm completion <bash|zsh|fish>`.
 - MatchBox `snapshot` channel: `mvm install snapshot` and `mvm use snapshot` track the rolling development build by build ID and revision, refresh only when the published build changes, and honor `--force`. Version listings and `mvm current` show the recorded build identity.
 - SHA-256 verification of release downloads using `version.json` metadata plus a matching checksum (`sha256sum`, `shasum`, or PowerShell `Get-FileHash`). Releases without metadata cannot be newly installed, and a failed check leaves the active version untouched.
 - `MATCHBOX_HOME` initialization: shell initialization exports both `MVM_HOME` and `MATCHBOX_HOME`, adds both `bin` directories to `PATH`, and preserves values already set in the environment.
