@@ -15,6 +15,7 @@ $saved = @{
     ProcessMvmHome = $env:MVM_HOME
     ProcessMatchboxHome = $env:MATCHBOX_HOME
     ProcessMvmBin = $env:MVM_BIN
+    ProcessPath = $env:Path
 }
 $profilePath = $PROFILE
 $profileExisted = Test-Path -LiteralPath $profilePath
@@ -51,6 +52,7 @@ try {
     Invoke-Test 'generated PowerShell init preserves an explicit MATCHBOX_HOME' {
         $customHome = Join-Path $sandbox 'custom-matchbox'
         $env:MATCHBOX_HOME = $customHome
+        $env:Path = "$(Join-Path $mvmHome 'bin');$env:Path"
         & (Join-Path $mvmHome 'bin/mvm.exe') doctor --fix
         Assert-Equal 0 $LASTEXITCODE 'doctor --fix exit code'
 
@@ -77,6 +79,7 @@ finally {
     if ($null -eq $saved.ProcessMvmHome) { Remove-Item Env:MVM_HOME -ErrorAction SilentlyContinue } else { $env:MVM_HOME = $saved.ProcessMvmHome }
     if ($null -eq $saved.ProcessMatchboxHome) { Remove-Item Env:MATCHBOX_HOME -ErrorAction SilentlyContinue } else { $env:MATCHBOX_HOME = $saved.ProcessMatchboxHome }
     if ($null -eq $saved.ProcessMvmBin) { Remove-Item Env:MVM_BIN -ErrorAction SilentlyContinue } else { $env:MVM_BIN = $saved.ProcessMvmBin }
+    $env:Path = $saved.ProcessPath
 
     if ($profileExisted) {
         Set-Content -LiteralPath $profilePath -Value $profileContents -NoNewline
