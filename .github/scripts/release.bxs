@@ -1,0 +1,166 @@
+/**
+ * Release automation, run with MatchBox:
+ * matchbox release.bxs reserve-stable <version>
+ * matchbox release.bxs prepare-next <released-version> <box.json-path>
+ */
+
+function parseVersion( version ) {
+	if ( reFind( "^[0-9]+\.[0-9]+\.[0-9]+(-snapshot)?$", version ) != 1 ) {
+		throw(
+			message = "Unsupported release version: " & version
+		);
+	}
+	return listToArray(
+		replace(
+			version,
+			"-snapshot",
+			""
+		),
+		"."
+	);
+}
+
+/** Perform an authenticated GitHub request without logging credentials or response bodies. */
+function githubRequest(
+	api,
+	token,
+	endpoint,
+	method = "GET",
+	body   = {}
+) {
+	var response = jsonDeserialize(
+		http(
+			{
+				url     : api & endpoint,
+				method  : method,
+				headers : {
+					"User-Agent"    : "MVM-release",
+					"Accept"        : "application/vnd.github+json",
+					"Authorization" : "Bearer " & token,
+					"Content-Type"  : "application/json"
+				},
+				body     : method == "POST" ? jsonSerialize( body ) : "",
+				timeout  : 30,
+				redirect : false
+			}
+		)
+			.get()
+	);
+	return response.status;
+}
+
+function assertMissing(
+	api,
+	token,
+	endpoint,
+	description
+) {
+	var status = githubRequest(
+		api,
+		token,
+		endpoint
+	);
+	// Only a 404 proves absence. Authentication, rate-limit, and network errors fail closed.
+	if ( status == 404 ) {
+		return;
+	}
+	if ( status == 200 ) {
+		throw(
+			message = description & " already exists; stable versions cannot be overwritten. Bump box.json."
+		);
+	}
+	throw(
+		message = "GitHub lookup failed with HTTP " & status
+	);
+}
+
+function reserveStableTag( version ) {
+	parseVersion( version );
+	var repository = getSystemSetting( "GITHUB_REPOSITORY", "" );
+	var sha = getSystemSetting( "GITHUB_SHA", "" );
+	var token = getSystemSetting( "GITHUB_TOKEN", "" );
+	var api = getSystemSetting( "GITHUB_API_URL", "https://api.github.com" );
+	if ( !len( repository ) || !len( sha ) || !len( token ) ) {
+		throw(
+			message = "GITHUB_REPOSITORY, GITHUB_SHA, and GITHUB_TOKEN are required."
+		);
+	}
+	var tag = "v" & version;
+	var base = "/repos/" & repository;
+	assertMissing(
+		api,
+		token,
+		base & "/releases/tags/" & tag,
+		"Release " & tag
+	);
+	assertMissing(
+		api,
+		token,
+		base & "/git/ref/tags/" & tag,
+		"Tag " & tag
+	);
+	// Creating the ref is atomic: a concurrent publisher cannot claim the same version.
+	var status = githubRequest(
+		api,
+		token,
+		base & "/git/refs",
+		"POST",
+		{
+			"ref" : "refs/tags/" & tag,
+			"sha" : sha
+		}
+	);
+	if ( status != 201 ) {
+		throw(
+			message = "Stable tag reservation failed with HTTP " & status
+		);
+	}
+	println( "Reserved stable tag " & tag );
+}
+
+function prepareNextVersion( releasedVersion, path ) {
+	var released = parseVersion( releasedVersion );
+	var contents = fileRead( path );
+	var manifest = jsonDeserialize( contents );
+	var current = parseVersion( manifest.version );
+	// Preserve a version already advanced manually, by a newer release, or by a retry.
+	for ( var index = 1; index <= arrayLen( released ); index++ ) {
+		if ( val( current[ index ] ) > val( released[ index ] ) ) {
+			println(
+				"Development is already prepared; no version bump needed."
+			);
+			return;
+		}
+		if ( val( current[ index ] ) < val( released[ index ] ) ) {
+			break;
+		}
+	}
+	var nextVersion = released[ 1 ] & "." & ( val( released[ 2 ] ) + 1 ) & ".0-snapshot";
+	// Keep the manifest's formatting and unrelated fields intact.
+	fileWrite(
+		path,
+		reReplace(
+			contents,
+			"""version""\s*:\s*""[^""]+""",
+			"""version"": """ & nextVersion & """",
+			"one"
+		)
+	);
+	println( "Prepared development version " & nextVersion );
+}
+
+try {
+	var args = cliGetArgs().positionals;
+	if ( arrayLen( args ) == 2 && args[ 1 ] == "reserve-stable" ) {
+		reserveStableTag( args[ 2 ] );
+	} else if ( arrayLen( args ) == 3 && args[ 1 ] == "prepare-next" ) {
+		prepareNextVersion( args[ 2 ], args[ 3 ] );
+	} else {
+		throw(
+			message = "Usage: matchbox release.bxs reserve-stable <version> | prepare-next <released-version> <box.json-path>"
+		);
+	}
+} catch (any error) {
+	println( "Release automation failed: " & error.message );
+	cliExit( 1 );
+}

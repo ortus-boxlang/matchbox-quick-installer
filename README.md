@@ -16,7 +16,7 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.ps1 | iex
 ```
 
-The installer defaults to the latest stable release. Set `MVM_VERSION` to an exact version to install a snapshot instead, for example `curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | MVM_VERSION=2.0.1-snapshot bash`.
+The installer defaults to the latest stable release. Set `MVM_VERSION` to an exact version to install a snapshot instead, for example `curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | MVM_VERSION=2.0.2-snapshot bash`.
 
 On a real terminal the installer shows a branded plan and asks whether to install the latest MatchBox runtime immediately after MVM is ready. For scripted installs, pass `--yes` (or set `MVM_NON_INTERACTIVE=1`) to accept the recommended flow without prompts:
 
@@ -84,4 +84,12 @@ When a push to `development` updates a promotion PR to `main`, the PR's MVM Rele
 
 ## Releases
 
-Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `development` uses the next version with a `-snapshot` suffix and updates that versioned prerelease on each push. `main` strips the suffix and publishes the stable version (for example, `2.0.1-snapshot` becomes `v2.0.1`). Bump the development version for the next release cycle. Builds include their commit and UTC build time; installers select latest stable by default, or an exact version via `MVM_VERSION`.
+Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `development` uses the next version with a `-snapshot` suffix and updates that versioned prerelease on each push. `main` strips the suffix and publishes the stable version (for example, `2.0.2-snapshot` becomes `v2.0.2`). Builds include their commit and UTC build time; installers select latest stable by default, or an exact version via `MVM_VERSION`.
+
+Stable versions are immutable: publication fails if either the release or its tag already exists, even at the same commit. The workflow reserves the stable tag before uploading assets. If publication fails after reserving the tag, investigate and explicitly resolve the incomplete release before retrying; the workflow will not overwrite it automatically. Snapshot releases remain replaceable.
+
+After successful stable publication, CI advances `box.json` on `development` to the next minor snapshot, following BoxLang's normal release policy: `2.0.2` prepares `2.1.0-snapshot`. A development version already ahead of the released version is preserved. Promote development to main for subsequent releases; a direct main push with an already published version is rejected.
+
+The preparation job needs permission to push to `development`, including any applicable branch-protection exception. It never force-pushes: if development changes during preparation, rerun the failed preparation job against the latest branch. The bot commit uses `GITHUB_TOKEN` and therefore does not trigger another push workflow; the next developer push publishes the new snapshot series.
+
+Release automation runs through `.github/scripts/release.bxs` using MatchBox. Run the focused offline tests with `python3 tests/integration/test_release_workflow.py`; set `MATCHBOX_BIN` if MatchBox is not on PATH. The tests execute the script against a local HTTP server, without publishing GitHub releases.

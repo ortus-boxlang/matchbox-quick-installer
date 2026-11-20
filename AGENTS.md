@@ -30,7 +30,7 @@ boxlang format --check --source ./src   # Verify formatting
 
 ## Build and version conventions
 
-- `box.json` holds the authoritative version (currently `2.0.1-snapshot`) and the `build`/`test` scripts.
+- `box.json` holds the authoritative version (currently `2.0.2-snapshot`) and the `build`/`test` scripts.
 - `build.sh` replaces the `MVM_VERSION`, `MVM_COMMIT`, and `MVM_BUILT_ON` constants in `src/mvm.bxs` in a generated `build/mvm.bxs`, then compiles with `matchbox --target native`. Never edit generated files under `build/`.
 - Branch determines the published version: `main` strips `-snapshot`, `development` ensures it. Override with `MVM_VERSION`, `MVM_COMMIT`, `MVM_BUILT_ON`, or `MVM_OUTPUT` when testing.
 - Keep installers and MVM in sync: a change to paths, environment variables (`MVM_HOME`, `MATCHBOX_HOME`, `MVM_VERSION`, `GITHUB_TOKEN`/`GH_TOKEN`), shell init, or CLI flags usually needs matching changes in the install scripts, tests, and README.
