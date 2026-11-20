@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - development
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -18,9 +19,26 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Integration tests
-    runs-on: ubuntu-latest
+  test-platform:
+    name: Integration tests (${{ matrix.platform }})
+    # A development push already runs the full release pipeline for this commit.
+    if: github.event_name != 'pull_request' || github.event.action != 'synchronize' || github.event.pull_request.base.ref != 'main' || github.event.pull_request.head.ref != 'development' || github.event.pull_request.head.repo.full_name != github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows arm64 is still built in the build job, but CommandBox cannot run there yet.
+        include:
+          - runner: ubuntu-latest
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+          - runner: macos-15-intel
+            platform: macos-x64
+          - runner: macos-15
+            platform: macos-arm64
+          - runner: windows-latest
+            platform: windows-x64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,11 +59,66 @@ jobs:
         run: box install
 
       - name: Run integration tests
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tests/integration/run.sh
+
+      - name: Run Windows installer suite
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: .\tests\powershell\run.ps1
+
+  test-linux-distro:
+    name: Installer smoke (${{ matrix.distro }})
+    if: github.event_name != 'pull_request' || github.event.action != 'synchronize' || github.event.pull_request.base.ref != 'main' || github.event.pull_request.head.ref != 'development' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # MVM's native binary is glibc-linked, so the smoke suite targets glibc distros.
+        distro: [debian, ubuntu, fedora, arch]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Linux distro tests
+        id: run-linux
+        continue-on-error: true
+        shell: sh
+        run: |
+          log_directory="$RUNNER_TEMP/mvm-test-logs"
+          mkdir -p "$log_directory"
+          log_path="$log_directory/linux-${{ matrix.distro }}.log"
+          set +e
+          (
+            sh ./tests/run-all.sh ${{ matrix.distro }}
+            printf '%s\n' "$?" >"$log_path.exitcode"
+          ) 2>&1 | tee "$log_path"
+
+      - name: Report Linux distro results
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:RUNNER_TEMP "mvm-test-logs/linux-${{ matrix.distro }}.log"
+          $exitCode = [int](Get-Content "$logPath.exitcode")
+          & ./tests/ci-report.ps1 -Name 'Installer smoke (${{ matrix.distro }})' -LogPath $logPath -ExitCode $exitCode
+
+      - name: Upload Linux distro log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-linux-${{ matrix.distro }}
+          path: ${{ runner.temp }}/mvm-test-logs/linux-${{ matrix.distro }}.log
+
+      - name: Finalize Linux distro results
+        if: always()
+        shell: sh
+        run: exit "$(cat "$RUNNER_TEMP/mvm-test-logs/linux-${{ matrix.distro }}.log.exitcode")"
 
   build:
     name: Build ${{ matrix.platform }}
-    needs: test
+    needs: [test-platform, test-linux-distro]
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +178,7 @@ jobs:
   publish:
     name: Publish release or snapshot
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
-    needs: [test, build]
+    needs: [test-platform, test-linux-distro, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write

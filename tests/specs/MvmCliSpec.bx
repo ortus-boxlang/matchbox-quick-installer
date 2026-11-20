@@ -36,8 +36,12 @@ class extends="testbox.system.BaseSpec" {
             } );
 
             it( "updates the MVM executable from the latest channel release", function() {
+                // Windows replaces mvm.exe from a deferred background updater, so it cannot be exercised safely here.
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
                 var binDirectory = variables.mvmHome & "/bin";
-                var mvmBinary = binDirectory & "/mvm";
+                var windowsPlatform = getsystemsetting( "OS", "" ).lCase().contains( "windows" );
+                var mvmBinary = binDirectory & "/mvm" & ( windowsPlatform ? ".exe" : "" );
                 directoryCreate( binDirectory );
                 fileWrite( mvmBinary, "old MVM binary" );
 
@@ -53,6 +57,8 @@ class extends="testbox.system.BaseSpec" {
             } );
 
             it( "prints a valid Bash completion script", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
                 var result = runMvm( [ "completion", "bash" ] );
                 var completionFile = variables.mvmHome & "/mvm-completion.bash";
                 directoryCreate( variables.mvmHome & "/versions/0.9.0" );
@@ -70,8 +76,67 @@ class extends="testbox.system.BaseSpec" {
                 expect( result.output ).toInclude( "install update use local" );
                 expect( result.output ).toInclude( "--force" );
                 expect( result.output ).toInclude( "--fix" );
+                expect( result.output ).toInclude( "latest snapshot" );
+                expect( result.output ).toInclude( "bash zsh fish" );
                 expect( syntax.exitCode ).toBe( 0 );
                 expect( completion.output ).toInclude( "0.9.0" );
+            } );
+
+            it( "prints valid Zsh and Fish completion scripts", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var quote = char( 34 );
+                var zshResult = runMvm( [ "completion", "zsh" ] );
+                var fishResult = runMvm( [ "completion", "fish" ] );
+                var zshFile = variables.mvmHome & "/mvm-completion.zsh";
+                var fishFile = variables.mvmHome & "/mvm-completion.fish";
+                fileWrite( zshFile, zshResult.output );
+                fileWrite( fishFile, fishResult.output );
+                directoryCreate( variables.mvmHome & "/versions/0.9.0" );
+
+                var zshAvailable = systemExecute( name="/bin/sh", arguments=[ "-c", "command -v zsh >/dev/null 2>&1" ], timeout=10 ).exitCode == 0;
+                var fishAvailable = systemExecute( name="/bin/sh", arguments=[ "-c", "command -v fish >/dev/null 2>&1" ], timeout=10 ).exitCode == 0;
+                var zshSyntax = { exitCode: 0 };
+                var fishSyntax = { exitCode: 0 };
+                var zshLoad = { output: "" };
+                var fishCompletion = { output: "" };
+                if ( zshAvailable ) {
+                    zshSyntax = systemExecute( name="zsh", arguments=[ "-n", zshFile ], timeout=10 );
+                    zshLoad = systemExecute(
+                        name="zsh",
+                        arguments=[ "-f", "-c", "autoload -U +X compinit && compinit -u; source " & quote & zshFile & quote & "; print -r -- $+functions[_mvm]" ],
+                        timeout=10,
+                        environment={ MVM_HOME: variables.mvmHome }
+                    );
+                }
+                if ( fishAvailable ) {
+                    fishSyntax = systemExecute( name="fish", arguments=[ "-n", fishFile ], timeout=10 );
+                    fishCompletion = systemExecute(
+                        name="fish",
+                        arguments=[ "-c", "source " & quote & fishFile & quote & "; complete -C " & quote & "mvm use " & quote ],
+                        timeout=10,
+                        environment={ MVM_HOME: variables.mvmHome }
+                    );
+                }
+
+                expect( zshResult.exitCode ).toBe( 0 );
+                expect( zshResult.output ).toInclude( "##compdef mvm" );
+                expect( zshResult.output ).toInclude( "_mvm_installed_versions" );
+                expect( zshResult.output ).toInclude( "install:Install a MatchBox version" );
+                expect( zshResult.output ).toInclude( "bash zsh fish" );
+                expect( fishResult.exitCode ).toBe( 0 );
+                expect( fishResult.output ).toInclude( "complete -c mvm -f" );
+                expect( fishResult.output ).toInclude( "__mvm_versions" );
+                expect( fishResult.output ).toInclude( "-a use -d" );
+                expect( fishResult.output ).toInclude( "bash zsh fish" );
+                if ( zshAvailable ) {
+                    expect( zshSyntax.exitCode ).toBe( 0 );
+                    expect( zshLoad.output ).toInclude( "1" );
+                }
+                if ( fishAvailable ) {
+                    expect( fishSyntax.exitCode ).toBe( 0 );
+                    expect( fishCompletion.output ).toInclude( "0.9.0" );
+                }
             } );
 
             it( "installs and registers Bash completions", function() {
@@ -158,6 +223,12 @@ class extends="testbox.system.BaseSpec" {
                     timeout=10,
                     environment={ HOME: macUserHome, MVM_HOME: "/ignored", PATH: getsystemsetting( "PATH", "" ) }
                 );
+                var matchboxStartup = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", 'source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"' ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, MATCHBOX_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
+                );
 
                 expect( chmod.exitCode ).toBe( 0 );
                 expect( chmodUname.exitCode ).toBe( 0 );
@@ -165,9 +236,15 @@ class extends="testbox.system.BaseSpec" {
                 expect( repeatedInstall.exitCode ).toBe( 0 );
                 expect( fileExists( completionFile ) ).toBeTrue();
                 expect( fileRead( completionFile ) ).toInclude( "complete -o default -F _mvm_completions mvm" );
+                expect( fileExists( mvmHome & "/completions/mvm.zsh" ) ).toBeTrue();
+                expect( fileExists( mvmHome & "/completions/mvm.fish" ) ).toBeTrue();
                 expect( fileRead( curlLog ) ).toInclude( "/releases/download/v" & requestedVersion & "/mvm-linux-x64" );
                 expect( fileExists( initFile ) ).toBeTrue();
                 expect( fileRead( initFile ) ).toInclude( 'MVM_HOME/bin' );
+                expect( fileRead( initFile ) ).toInclude( 'completions/mvm.bash' );
+                expect( fileRead( initFile ) ).toInclude( 'MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"' );
+                expect( fileRead( initFile ) ).toInclude( 'export MATCHBOX_HOME' );
+                expect( fileRead( initFile ) ).toInclude( '$MATCHBOX_HOME/bin' );
                 expect( profile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
                 expect( profile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
                 expect( profile ).notToInclude( "## MVM bash completion" );
@@ -178,6 +255,9 @@ class extends="testbox.system.BaseSpec" {
                 expect( bashProfile ).toInclude( ".bashrc" );
                 expect( arrayLen( macInitMarkers ) ).toBe( 1 );
                 expect( loginShell.output ).toInclude( "/ignored" );
+                expect( matchboxStartup.exitCode ).toBe( 0 );
+                expect( matchboxStartup.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), matchboxStartup.output ) ) ).toBe( 1 );
             } );
 
             it( "repairs Bash completions when doctor is asked to fix them", function() {
@@ -199,6 +279,7 @@ class extends="testbox.system.BaseSpec" {
                     environment: {
                         HOME: userHome,
                         MVM_HOME: mvmHome,
+                        MATCHBOX_HOME: "",
                         SHELL: "/bin/bash",
                         PATH: fakeBin & ":" & mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
                     }
@@ -237,6 +318,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( profileUntouched ).toBeTrue();
                 expect( fixed.exitCode ).toBe( 0 );
                 expect( fixed.output & fixed.error ).toInclude( "Bash completions" );
+                expect( fixed.output & fixed.error ).toInclude( "MATCHBOX_HOME: " & userHome & "/.matchbox" );
                 expect( staleDiagnostic.output & staleDiagnostic.error ).toInclude( "missing or stale" );
                 expect( stalePreserved ).toBeTrue();
                 expect( repeatedFix.exitCode ).toBe( 0 );
@@ -269,17 +351,21 @@ class extends="testbox.system.BaseSpec" {
                 };
                 var zshFix = systemExecute( argumentCollection=options );
                 var zshProfile = fileRead( userHome & "/.zshrc" );
+                var zshInit = mvmHome & "/scripts/mvm-init.sh";
+                var zshCompletion = mvmHome & "/completions/mvm.zsh";
                 var zshStartup = systemExecute(
                     name: "bash",
-                    arguments: [ "--noprofile", "--norc", "-c", 'source "$HOME/.zshrc"; source "$HOME/.zshrc"; echo "$MVM_HOME"; echo "$PATH"' ],
+                    arguments: [ "--noprofile", "--norc", "-c", 'source "$HOME/.zshrc"; source "$HOME/.zshrc"; echo "$MVM_HOME"; echo "$MATCHBOX_HOME"; echo "$PATH"' ],
                     timeout: 10,
-                    environment: { HOME: userHome, MVM_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
+                    environment: { HOME: userHome, MVM_HOME: "", MATCHBOX_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
                 );
                 options.environment.SHELL = "/usr/bin/fish";
-                options.environment.MVM_HOME = userHome & "/fish-mvm";
-                options.environment.PATH = options.environment.MVM_HOME & "/bin:" & getsystemsetting( "PATH", "" );
+                var fishMvmHome = userHome & "/fish-mvm";
+                options.environment.MVM_HOME = fishMvmHome;
+                options.environment.PATH = fishMvmHome & "/bin:" & getsystemsetting( "PATH", "" );
                 var fishFix = systemExecute( argumentCollection=options );
-                var fishInit = options.environment.MVM_HOME & "/scripts/mvm-init.fish";
+                var fishInit = fishMvmHome & "/scripts/mvm-init.fish";
+                var fishCompletion = fishMvmHome & "/completions/mvm.fish";
                 var fishProfile = fileRead( userHome & "/.config/fish/config.fish" );
                 var windowsMvmHome = userHome & "/windows-mvm";
                 var windowsProfile = userHome & "/Documents/PowerShell/Microsoft.PowerShell_profile.ps1";
@@ -310,17 +396,77 @@ class extends="testbox.system.BaseSpec" {
                 expect( zshStartup.exitCode ).toBe( 0 );
                 expect( zshStartup.output ).toInclude( mvmHome );
                 expect( arrayLen( reMatchNoCase( "custom-mvm/bin", zshStartup.output ) ) ).toBe( 1 );
+                expect( zshStartup.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), zshStartup.output ) ) ).toBe( 1 );
                 expect( zshProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
                 expect( zshProfile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
+                expect( zshFix.output & zshFix.error ).toInclude( "Zsh completions" );
+                expect( fileExists( zshCompletion ) ).toBeTrue();
+                expect( fileRead( zshCompletion ) ).toInclude( "##compdef mvm" );
+                expect( fileRead( zshInit ) ).toInclude( 'completions/mvm.zsh' );
                 expect( fishFix.exitCode ).toBe( 0 );
+                expect( fishFix.output & fishFix.error ).toInclude( "Fish completions" );
+                expect( fileExists( fishCompletion ) ).toBeTrue();
+                expect( fileRead( fishCompletion ) ).toInclude( "complete -c mvm -f" );
                 expect( fileExists( fishInit ) ).toBeTrue();
+                expect( fileRead( fishInit ) ).toInclude( 'completions/mvm.fish' );
                 expect( fileRead( fishInit ) ).toInclude( 'set -gx PATH "$MVM_HOME/bin" $PATH' );
+                expect( fileRead( fishInit ) ).toInclude( 'set -gx MATCHBOX_HOME "$HOME/.matchbox"' );
+                expect( fileRead( fishInit ) ).toInclude( '$MATCHBOX_HOME/bin' );
                 expect( fishProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.fish' );
                 expect( windowsFix.exitCode ).toBe( 0 );
                 expect( fileExists( windowsInit ) ).toBeTrue();
                 expect( fileRead( windowsInit ) ).toInclude( '$env:Path' );
+                expect( fileRead( windowsInit ) ).toInclude( '$env:MATCHBOX_HOME' );
+                expect( fileRead( windowsInit ) ).toInclude( '$matchboxBin' );
                 expect( powershellProfile ).toInclude( "scripts/mvm-init.ps1" );
                 expect( powershellProfile ).notToInclude( "-notlike" );
+            } );
+
+            it( "honors an explicit MATCHBOX_HOME and defaults it when unset", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var userHome = variables.mvmHome & "/matchbox-home-user";
+                var mvmHome = userHome & "/custom-mvm";
+                var customMatchboxHome = userHome & "/custom-matchbox";
+                directoryCreate( userHome );
+                var options = {
+                    name: getsystemsetting( "MVM_BIN", "" ),
+                    arguments: [ "doctor", "--fix" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        MVM_HOME: mvmHome,
+                        MATCHBOX_HOME: customMatchboxHome,
+                        SHELL: "/bin/bash",
+                        PATH: mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var fixed = systemExecute( argumentCollection=options );
+                var initFile = mvmHome & "/scripts/mvm-init.sh";
+                var configuredCommand = 'source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"';
+                var fallbackCommand = 'unset MATCHBOX_HOME; source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"';
+                var configured = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", configuredCommand ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, MATCHBOX_HOME: customMatchboxHome, PATH: getsystemsetting( "PATH", "" ) }
+                );
+                var fallback = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", fallbackCommand ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, PATH: getsystemsetting( "PATH", "" ) }
+                );
+
+                expect( fixed.exitCode ).toBe( 0 );
+                expect( fileRead( initFile ) ).toInclude( 'MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"' );
+                expect( configured.exitCode ).toBe( 0 );
+                expect( configured.output ).toInclude( customMatchboxHome );
+                expect( configured.output ).toInclude( customMatchboxHome & "/bin" );
+                expect( fallback.exitCode ).toBe( 0 );
+                expect( fallback.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), fallback.output ) ) ).toBe( 1 );
             } );
 
             it( "asks before updating MVM on interactive startup", function() {
@@ -333,9 +479,16 @@ class extends="testbox.system.BaseSpec" {
                 fileWrite( mvmBinary, "##!/bin/sh" & newline & "echo 'MVM version: 0.0.0'" & newline );
                 fileWrite( variables.mvmHome & "/update-check", "checked" );
                 var chmod = systemExecute( name="chmod", arguments=[ "+x", mvmBinary ], timeout=10 );
+                var kernelName = trim( systemExecute( name="uname", arguments=[ "-s" ], timeout=10 ).output ).lCase();
+                var currentCommand = kernelName.contains( "darwin" )
+                    ? 'echo n | script -q /dev/null "$MVM_BIN" current'
+                    : "echo n | script -qec '$MVM_BIN current' /dev/null";
+                var completionCommand = kernelName.contains( "darwin" )
+                    ? 'script -q /dev/null "$MVM_BIN" completion bash'
+                    : "script -qec '$MVM_BIN completion bash' /dev/null";
                 var startup = {
                     name: "/bin/sh",
-                    arguments: [ "-c", "echo n | script -qec '$MVM_BIN current' /dev/null" ],
+                    arguments: [ "-c", currentCommand ],
                     timeout: 30,
                     environment: {
                         MVM_HOME: variables.mvmHome,
@@ -345,7 +498,7 @@ class extends="testbox.system.BaseSpec" {
                 };
                 var completionStartup = {
                     name: "/bin/sh",
-                    arguments: [ "-c", "script -qec '$MVM_BIN completion bash' /dev/null" ],
+                    arguments: [ "-c", completionCommand ],
                     timeout: 30,
                     environment: startup.environment
                 };
@@ -399,6 +552,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( matchbox.output & matchbox.error ).toInclude( versions[ 1 ] );
                 expect( doctor.exitCode ).toBe( 0 );
                 expect( doctor.output & doctor.error ).toInclude( "Active MatchBox: " & versions[ 1 ] );
+                expect( doctor.output & doctor.error ).toInclude( "MATCHBOX_HOME: " );
                 expect( removed.output & removed.error ).toInclude( "removed" );
                 expect( currentAfterRemove.output ).toInclude( "No MatchBox version is active" );
                 expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );
