@@ -21,6 +21,8 @@ permissions:
 jobs:
   test-platform:
     name: Integration tests (${{ matrix.platform }})
+    # A development push already runs the full release pipeline for this commit.
+    if: github.event_name != 'pull_request' || github.event.action != 'synchronize' || github.event.pull_request.base.ref != 'main' || github.event.pull_request.head.ref != 'development' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +71,7 @@ jobs:
 
   test-linux-distro:
     name: Installer smoke (${{ matrix.distro }})
+    if: github.event_name != 'pull_request' || github.event.action != 'synchronize' || github.event.pull_request.base.ref != 'main' || github.event.pull_request.head.ref != 'development' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

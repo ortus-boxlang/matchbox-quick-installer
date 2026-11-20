@@ -80,6 +80,8 @@ Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:
 
 The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases. CI also runs the suite across Linux, macOS, and Windows runners plus a container smoke suite on Debian, Ubuntu, Fedora, and Arch; MVM's native binary is glibc-linked, so Alpine is not part of the container matrix. Set `GITHUB_TOKEN` (or `GH_TOKEN`) when running the suite against live GitHub releases to avoid unauthenticated API rate limits.
 
+When a push to `development` updates a promotion PR to `main`, the PR's MVM Release jobs are skipped to avoid duplicating the push pipeline. Check the `development` push run for its results; the skipped PR jobs do not test a separate merge with `main`. Other PRs and newly opened promotion PRs run normally. CodeQL runs separately.
+
 ## Releases
 
 Pushes to `main` and `development` both run the TestBox integration suite before building native executables for Linux, macOS, and Windows. `development` uses the next version with a `-snapshot` suffix and updates that versioned prerelease on each push. `main` strips the suffix and publishes the stable version (for example, `2.0.1-snapshot` becomes `v2.0.1`). Bump the development version for the next release cycle. Builds include their commit and UTC build time; installers select latest stable by default, or an exact version via `MVM_VERSION`.
