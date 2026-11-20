@@ -34,8 +34,12 @@ try {
     }
 
     Invoke-Test 'install.ps1 persists both home variables and initializes MATCHBOX_HOME' {
-        & $hostExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install/install.ps1')
+        $installerOutput = (& $hostExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install/install.ps1') 2>&1 | Out-String)
         Assert-Equal 0 $LASTEXITCODE 'install.ps1 exit code'
+        Assert-Contains 'The Rust runtime for BoxLang' $installerOutput 'installer shows tagline'
+        Assert-Contains 'https://matchbox.boxlang.io/' $installerOutput 'installer shows product URL'
+        Assert-Contains 'Installation plan' $installerOutput 'installer shows plan'
+        Assert-Contains 'MATCHBOX VERSION MANAGER' $installerOutput 'installer shows product name'
 
         $installDir = Join-Path $mvmHome 'bin'
         Assert-Equal $mvmHome ([Environment]::GetEnvironmentVariable('MVM_HOME', [EnvironmentVariableTarget]::User)) 'User MVM_HOME'
@@ -47,6 +51,11 @@ try {
         $initContents = Get-Content -LiteralPath $init -Raw
         Assert-Contains '$env:MATCHBOX_HOME' $initContents 'init sets MATCHBOX_HOME'
         Assert-Contains '$matchboxBin' $initContents 'init adds MATCHBOX_HOME/bin'
+    }
+
+    Invoke-Test 'install.ps1 --help prints usage' {
+        $helpOutput = (& $hostExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install/install.ps1') --help 2>&1 | Out-String)
+        Assert-Contains 'Usage: install.ps1 [--yes]' $helpOutput 'help flag output'
     }
 
     Invoke-Test 'generated PowerShell init preserves an explicit MATCHBOX_HOME' {

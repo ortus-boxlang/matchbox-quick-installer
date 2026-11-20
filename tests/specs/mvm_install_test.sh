@@ -28,7 +28,7 @@ while [ \$# -gt 0 ]; do
     fi
     shift
 done
-cp "$MVM_BIN" "\$output"
+cp "\$MVM_BIN" "\$output"
 EOF
 chmod +x "$FAKE_BIN/curl"
 
@@ -44,12 +44,12 @@ assert_contains() {
     esac
 }
 
-HOME="$HOME_DIR" \
+INSTALL_OUTPUT="$(HOME="$HOME_DIR" \
 MVM_HOME="$MVM_HOME_DIR" \
 MATCHBOX_HOME="" \
 SHELL=/bin/bash \
 PATH="$FAKE_BIN:$PATH" \
-bash "$PROJECT_ROOT/install/install.sh" >/dev/null
+bash "$PROJECT_ROOT/install/install.sh")"
 
 INIT_FILE="$MVM_HOME_DIR/scripts/mvm-init.sh"
 PROFILE_FILE="$HOME_DIR/.bashrc"
@@ -64,6 +64,48 @@ fi
 if [ -f "$PROFILE_FILE" ]; then
     assert_contains '$MVM_HOME/scripts/mvm-init.sh' "$(cat "$PROFILE_FILE")" "profile sources MVM init"
 fi
+
+assert_contains 'The Rust runtime for BoxLang' "$INSTALL_OUTPUT" "banner shows tagline"
+assert_contains 'https://matchbox.boxlang.io/' "$INSTALL_OUTPUT" "banner shows product URL"
+assert_contains 'Installation plan' "$INSTALL_OUTPUT" "installer shows plan"
+assert_contains 'MATCHBOX_VERSION_MANAGER' "$(printf '%s' "$INSTALL_OUTPUT" | tr ' ' '_')" "installer shows product name"
+if printf '%s' "$INSTALL_OUTPUT" | grep -Fq 'Install the latest MatchBox runtime now?'; then
+    fail "non-interactive install did not prompt"
+fi
+assert_contains 'mvm install latest' "$INSTALL_OUTPUT" "non-interactive install prints quick start"
+
+HELP_OUTPUT="$(bash "$PROJECT_ROOT/install/install.sh" --help)"
+assert_contains 'Usage: install.sh' "$HELP_OUTPUT" "help flag works"
+
+REAL_MVM="$MVM_BIN"
+YES_HOME="$SANDBOX/yes-home"
+YES_MVM_HOME="$SANDBOX/yes-mvm"
+CALLS="$SANDBOX/runtime-calls.log"
+STUB="$FAKE_BIN/mvm-runtime-stub"
+mkdir -p "$YES_HOME" "$YES_MVM_HOME"
+: >"$CALLS"
+cat > "$STUB" <<EOF
+#!/bin/sh
+if [ "\$1" = "doctor" ]; then
+    exec "$REAL_MVM" "\$@"
+fi
+printf '%s\n' "\$*" >>"$CALLS"
+exit 0
+EOF
+chmod +x "$STUB"
+YES_OUTPUT="$(HOME="$YES_HOME" \
+MVM_BIN="$STUB" \
+MVM_HOME="$YES_MVM_HOME" \
+MATCHBOX_HOME="" \
+SHELL=/bin/bash \
+PATH="$FAKE_BIN:$PATH" \
+bash "$PROJECT_ROOT/install/install.sh" --yes)"
+if printf '%s' "$YES_OUTPUT" | grep -Fq 'Install the latest MatchBox runtime now?'; then
+    fail "--yes still showed the runtime prompt"
+fi
+assert_contains 'MatchBox is ready' "$YES_OUTPUT" "yes flag installs runtime"
+assert_contains 'install latest' "$(cat "$CALLS")" "yes flag calls install latest"
+assert_contains 'use latest' "$(cat "$CALLS")" "yes flag calls use latest"
 
 SHELL_COMMAND='source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"'
 DEFAULT_OUTPUT="$(HOME="$HOME_DIR" MVM_HOME="$MVM_HOME_DIR" MATCHBOX_HOME="" bash --noprofile --norc -c "$SHELL_COMMAND")"
