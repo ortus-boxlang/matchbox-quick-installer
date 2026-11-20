@@ -10,7 +10,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Stable publication and development preparation must finish once started.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   SNAPSHOT: ${{ github.ref == 'refs/heads/development' }}
@@ -19,6 +20,17 @@ permissions:
   contents: read
 
 jobs:
+  test-release:
+    name: Release automation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MatchBox
+        uses: ortus-boxlang/setup-matchbox@main
+        with:
+          version: latest
+      - run: python3 tests/integration/test_release_workflow.py
+
   test-platform:
     name: Integration tests (${{ matrix.platform }})
     # A development push already runs the full release pipeline for this commit.
@@ -118,7 +130,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.platform }}
-    needs: [test-platform, test-linux-distro]
+    needs: [test-release, test-platform, test-linux-distro]
     strategy:
       fail-fast: false
       matrix:
@@ -179,6 +191,8 @@ jobs:
     name: Publish release or snapshot
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
     needs: [test-platform, test-linux-distro, build]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -207,6 +221,19 @@ jobs:
           force_push_tag: true
           message: MVM development snapshot
 
+      - name: Set up MatchBox for release automation
+        if: env.SNAPSHOT == 'false'
+        uses: ortus-boxlang/setup-matchbox@main
+        with:
+          version: latest
+
+      - name: Reserve stable version (refuse existing releases and tags)
+        if: env.SNAPSHOT == 'false'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: matchbox .github/scripts/release.bxs reserve-stable "$RELEASE_VERSION"
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -216,6 +243,48 @@ jobs:
           body: "${{ env.SNAPSHOT == 'true' && format('Commit: {0}', github.sha) || '' }}"
           prerelease: ${{ env.SNAPSHOT == 'true' }}
           make_latest: ${{ env.SNAPSHOT == 'true' && 'false' || 'true' }}
-          overwrite_files: true
+          overwrite_files: ${{ env.SNAPSHOT == 'true' }}
           generate_release_notes: ${{ env.SNAPSHOT == 'false' }}
           files: release-assets/*
+
+  prep-next-release:
+    name: Prepare development for the next release
+    if: github.ref == 'refs/heads/main'
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Use the exact released script even if development has moved on.
+      - uses: actions/checkout@v4
+        with:
+          path: released
+
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          path: development
+
+      - name: Set up MatchBox
+        uses: ortus-boxlang/setup-matchbox@main
+        with:
+          version: latest
+
+      - name: Advance development version
+        env:
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+        run: matchbox released/.github/scripts/release.bxs prepare-next "$RELEASE_VERSION" "$GITHUB_WORKSPACE/development/box.json"
+
+      - name: Commit version bump
+        working-directory: development
+        run: |
+          if git diff --quiet -- box.json; then
+            echo "Development is already prepared; no version bump needed."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add box.json
+          git commit -m 'Prepare next development snapshot'
+          # A normal push fails safely if development changed during preparation.
+          git push origin HEAD:development
