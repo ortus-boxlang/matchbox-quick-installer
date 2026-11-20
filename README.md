@@ -24,8 +24,6 @@ On a real terminal the installer shows a branded plan and asks whether to instal
 curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | bash -s -- --yes
 ```
 
-On interactive terminals the MatchBox flame flickers briefly during startup. Set `MVM_NO_ANIMATION=1` to disable the animation.
-
 The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. That script exports both `MVM_HOME` and `MATCHBOX_HOME` and adds both `bin` directories to `PATH`. Bash completions are also installed for commands and installed versions. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and Bash completions.
 
 ### Environment variables
