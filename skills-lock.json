@@ -1,0 +1,334 @@
+{
+  "version": 2,
+  "skills": {
+    "boxlang-application-descriptor": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/application-descriptor/SKILL.md",
+      "computedHash": "0dc89936f3dbf834b473a4e5838485b82f4898c6e32e9c2496f44f3ad3aeada4"
+    },
+    "boxlang-async-programming": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/async-programming/SKILL.md",
+      "computedHash": "74a12b6144b2af38543ee54c7dd5c315ec577100e27228404c079e501c39f60b"
+    },
+    "boxlang-best-practices": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/best-practices/SKILL.md",
+      "computedHash": "5a5dc9c5abd2bf73aeb0acf78427655fa0458f653af8def16aea2164ddfe2b54"
+    },
+    "boxlang-caching": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/caching/SKILL.md",
+      "computedHash": "0b434b35b56ed4f406105ade59f54865d1f9bc27cfac49ee74a107dc4dfa2f44"
+    },
+    "boxlang-cfml-migration": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/cfml-migration/SKILL.md",
+      "computedHash": "d3f259d9f10342ffc5f51083322db9afadaaeacb550a8d3907546026b71ba7aa"
+    },
+    "boxlang-classes-and-oop": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/classes-and-oop/SKILL.md",
+      "computedHash": "24d45bfabc9233b73324ad3b82779b67443a5451e4934e1427941c08f05a45a8"
+    },
+    "boxlang-code-documenter": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/code-documenter/SKILL.md",
+      "computedHash": "af92c3151b510d8da7c38d649214b943e1a6334a905baa708dbd6ec6d7cc905d"
+    },
+    "boxlang-code-reviewer": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/code-reviewer/SKILL.md",
+      "computedHash": "312a74e23f93735d2debe75fa73662110ba6921b4a036ed56597a58ab783e969"
+    },
+    "boxlang-configuration": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/configuration/SKILL.md",
+      "computedHash": "0e56f6a3a2d7875ddecfc38cdfdc7a5f923962302febdcaf00e38562948cea17"
+    },
+    "boxlang-database-access": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/database-access/SKILL.md",
+      "computedHash": "2ff1f00b1d5e89c4d63df18520556149be443c2d6a492c68c2b9f1ba7426eea3"
+    },
+    "boxlang-deployment": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/deployment/SKILL.md",
+      "computedHash": "9628dfc5b5ab7a1fa8f8d1d1f472946325d6249f77326a99e60bcd8012e5440c"
+    },
+    "boxlang-docbox": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/docbox/SKILL.md",
+      "computedHash": "d701173045f2108d48d847620c864aa00b2ed84dd6ba37a10fd738c9c9aa6fba"
+    },
+    "boxlang-file-handling": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/file-handling/SKILL.md",
+      "computedHash": "fe5719e8251f1ca4fd43e35f68764d5cc99998b724e9ee17d334e3721fdb8d78"
+    },
+    "boxlang-file-watchers": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/file-watchers/SKILL.md",
+      "computedHash": "9dca98d7e9aca4bd21359eed9ea781dcfa377e79fe12dfc585e7ff28072d9c9a"
+    },
+    "boxlang-functional-programming": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/functional-programming/SKILL.md",
+      "computedHash": "3be2f1b00290fc4c1e14da2d406c16bfa3ccc60a0f5dbcb26513321b7307dc32"
+    },
+    "boxlang-interceptors": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/interceptors/SKILL.md",
+      "computedHash": "91a79130ee58e05a5478e5944fa0880a4b0a320b410c0c4e6a3d2895465e0d3a"
+    },
+    "boxlang-java-integration": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/java-integration/SKILL.md",
+      "computedHash": "97827814c091c21bd37ab8eccb6f6ea9ce5a38654b16f1281cb28b2fb280d8c4"
+    },
+    "boxlang-language-fundamentals": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/language-fundamentals/SKILL.md",
+      "computedHash": "7f8bc3e1d5675a15800d7c0269da81b5f65ef8b50491b18573a02102b9659c22"
+    },
+    "boxlang-modules-and-packages": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/modules-and-packages/SKILL.md",
+      "computedHash": "f000c91f48afe375ed3d9b9c38808875658fbabc25ee322900cc8a46af486dc3"
+    },
+    "boxlang-runtime-aws-lambda": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-aws-lambda/SKILL.md",
+      "computedHash": "95be22a019e0c9ddc3b79f8e13a5d81ca1d813ba86beb9d27c21ab4b83ee8356"
+    },
+    "boxlang-runtime-azure-functions": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-azure-functions/SKILL.md",
+      "computedHash": "f71d6b33f58449140c937d67154b12835ba97347b8c7fbe7da063254dbddd3e7"
+    },
+    "boxlang-runtime-chromebook": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-chromebook/SKILL.md",
+      "computedHash": "5a59e8cb65fa3dd3026ed497ba6bd2fb793caced23022256d9df92e68e3bfde4"
+    },
+    "boxlang-runtime-cli-scripting": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-cli-scripting/SKILL.md",
+      "computedHash": "4ca10bed7b99bbcd2b1954eb4953f96f1cd9a254faecee3b12c0b4978864f5ab"
+    },
+    "boxlang-runtime-commandbox": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-commandbox/SKILL.md",
+      "computedHash": "fafbeeffc017c4e55087e77c0dbeb662e30b4119da704d34918bde9360844023"
+    },
+    "boxlang-runtime-compiled-native-binaries": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-compiled-native-binaries/SKILL.md",
+      "computedHash": "c08c0e73ba5445bb9995624fd4cd0ffcc5e15fd27404084500ba47b90133f9f2"
+    },
+    "boxlang-runtime-desktop-electron": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-desktop-electron/SKILL.md",
+      "computedHash": "1f54162ae113b0c1038c33a16037bfe95cd35999d443937874d51bde9acd42e1"
+    },
+    "boxlang-runtime-digitalocean-app": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-digitalocean-app/SKILL.md",
+      "computedHash": "3dd858b203fc24bb2b0d7b37d208e92b28250dee5bb3271c3608e5905cec27fa"
+    },
+    "boxlang-runtime-docker": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-docker/SKILL.md",
+      "computedHash": "7ef9c8510d82a0106fa71d176e00d63b9a137f46b7ca6b06bce6e6c8421b4fb7"
+    },
+    "boxlang-runtime-esp32": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-esp32/SKILL.md",
+      "computedHash": "b86d3b64cb74de999e62124377560fe5b3d03c894958e004ee621e0e94bfc8d7"
+    },
+    "boxlang-runtime-github-actions": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-github-actions/SKILL.md",
+      "computedHash": "9a336b374ca682959f90ca8e8fe0f8d78350274129e4c40dc599820678e85d01"
+    },
+    "boxlang-runtime-google-cloud-functions": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-google-cloud-functions/SKILL.md",
+      "computedHash": "b55ad19feb091b7883a9123468ea2648cae59f8137016817dbf23cc6255df46f"
+    },
+    "boxlang-runtime-jsr-223": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-jsr-223/SKILL.md",
+      "computedHash": "d46bde00638cf88dc971446a3f36791a871e22050211ba593a51a4fba9e93131"
+    },
+    "boxlang-runtime-matchbox": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-matchbox/SKILL.md",
+      "computedHash": "a68eb4bbe7fa2f058131e7951883a028813415f1fada65074cebe21b46897bbe"
+    },
+    "boxlang-runtime-miniserver": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-miniserver/SKILL.md",
+      "computedHash": "1b2c55864d8f8e45c859e191e548385cde55bf5e16bad70e2357bb786b70c7df"
+    },
+    "boxlang-runtime-spring-boot": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-spring-boot/SKILL.md",
+      "computedHash": "5be75284e143e29b9e95b586fd7d4b3f1f5d1f92c82b1a2172704961a27cbd43"
+    },
+    "boxlang-runtime-wasm-container": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-wasm-container/SKILL.md",
+      "computedHash": "f53d83d99a8579879f046d8fc8876fe602e466f33768c089657d0ac8ef891bb1"
+    },
+    "boxlang-runtime-wasm-in-the-browser": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/runtime-wasm-in-the-browser/SKILL.md",
+      "computedHash": "ff942c9e3f7104a731ee160fdc738d24f4e52a5f7585ca8f74d6b4cb8814be73"
+    },
+    "boxlang-scheduled-tasks": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/scheduled-tasks/SKILL.md",
+      "computedHash": "c0576762f201d0c5b952125f44271924bd7b81b186dd2ca7770483fefff1362d"
+    },
+    "boxlang-security": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/security/SKILL.md",
+      "computedHash": "107450430570398544abe3e9bca21d7b5bbf9e153c9a31c8ca8e253626dffa0f"
+    },
+    "boxlang-syntax-check": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/syntax-check/SKILL.md",
+      "computedHash": "51fe65e8b37e7182620f893cf2dd9c5c388f1b518d6cb2b2c7f61dcafa336bf4"
+    },
+    "boxlang-templating": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/templating/SKILL.md",
+      "computedHash": "33ba5f4a38b7425d97e67fe10aad0344c5c8524db371459a86a16b018a3f0524"
+    },
+    "boxlang-testing": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/testing/SKILL.md",
+      "computedHash": "fcef9a9c666f110dac00d9a4727cff228b1ca7cd4dcb17c49ea2612dae6206ce"
+    },
+    "boxlang-web-development": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/web-development/SKILL.md",
+      "computedHash": "73587d53ad625ba066e4872c8db99b8bd6a164fe94db2ad2c159cca18d52dacb"
+    },
+    "boxlang-zip": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/zip/SKILL.md",
+      "computedHash": "175ebdf802a8deaa61eea0f602e37499b764129ce94274ff1ea4384f400d5e81"
+    },
+    "matchbox-mvm": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/matchbox-mvm/SKILL.md",
+      "computedHash": "4032d4e098742f3256f8c117d861f4ea2b986f4767cb7e53a340466347dde57e"
+    },
+    "matchbox-native-fusion": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/matchbox-native-fusion/SKILL.md",
+      "computedHash": "860a5759d6a279894977d99a37396792e8e0a19005600d2602f21f758d9d9225"
+    },
+    "ortus-coding-standards": {
+      "source": "ortus-boxlang/skills",
+      "commit": "bb515f1ae812c4ef303415a3ad8f60434fa2705c",
+      "sourceType": "github",
+      "skillPath": "boxlang-developer/ortus-coding-standards/SKILL.md",
+      "computedHash": "3a45b9d275b98f9dee37b0729925909e3992160fc86fc386b4c7f3db71946bc7"
+    }
+  }
+}

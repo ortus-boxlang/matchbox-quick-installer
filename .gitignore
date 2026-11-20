@@ -2,3 +2,6 @@ build/
 testbox/
 modules/
 tests/results/
+
+# AI
+.agents/skills/**
