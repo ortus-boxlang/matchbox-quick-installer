@@ -36,6 +36,9 @@ class extends="testbox.system.BaseSpec" {
             } );
 
             it( "updates the MVM executable from the latest channel release", function() {
+                // Windows replaces mvm.exe from a deferred background updater, so it cannot be exercised safely here.
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
                 var binDirectory = variables.mvmHome & "/bin";
                 var windowsPlatform = getsystemsetting( "OS", "" ).lCase().contains( "windows" );
                 var mvmBinary = binDirectory & "/mvm" & ( windowsPlatform ? ".exe" : "" );
