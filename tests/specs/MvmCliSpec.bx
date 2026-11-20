@@ -158,6 +158,12 @@ class extends="testbox.system.BaseSpec" {
                     timeout=10,
                     environment={ HOME: macUserHome, MVM_HOME: "/ignored", PATH: getsystemsetting( "PATH", "" ) }
                 );
+                var matchboxStartup = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", 'source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"' ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, MATCHBOX_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
+                );
 
                 expect( chmod.exitCode ).toBe( 0 );
                 expect( chmodUname.exitCode ).toBe( 0 );
@@ -168,6 +174,9 @@ class extends="testbox.system.BaseSpec" {
                 expect( fileRead( curlLog ) ).toInclude( "/releases/download/v" & requestedVersion & "/mvm-linux-x64" );
                 expect( fileExists( initFile ) ).toBeTrue();
                 expect( fileRead( initFile ) ).toInclude( 'MVM_HOME/bin' );
+                expect( fileRead( initFile ) ).toInclude( 'MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"' );
+                expect( fileRead( initFile ) ).toInclude( 'export MATCHBOX_HOME' );
+                expect( fileRead( initFile ) ).toInclude( '$MATCHBOX_HOME/bin' );
                 expect( profile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
                 expect( profile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
                 expect( profile ).notToInclude( "## MVM bash completion" );
@@ -178,6 +187,9 @@ class extends="testbox.system.BaseSpec" {
                 expect( bashProfile ).toInclude( ".bashrc" );
                 expect( arrayLen( macInitMarkers ) ).toBe( 1 );
                 expect( loginShell.output ).toInclude( "/ignored" );
+                expect( matchboxStartup.exitCode ).toBe( 0 );
+                expect( matchboxStartup.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", matchboxStartup.output ) ) ).toBe( 1 );
             } );
 
             it( "repairs Bash completions when doctor is asked to fix them", function() {
@@ -199,6 +211,7 @@ class extends="testbox.system.BaseSpec" {
                     environment: {
                         HOME: userHome,
                         MVM_HOME: mvmHome,
+                        MATCHBOX_HOME: "",
                         SHELL: "/bin/bash",
                         PATH: fakeBin & ":" & mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
                     }
@@ -237,6 +250,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( profileUntouched ).toBeTrue();
                 expect( fixed.exitCode ).toBe( 0 );
                 expect( fixed.output & fixed.error ).toInclude( "Bash completions" );
+                expect( fixed.output & fixed.error ).toInclude( "MATCHBOX_HOME: " & userHome & "/.matchbox" );
                 expect( staleDiagnostic.output & staleDiagnostic.error ).toInclude( "missing or stale" );
                 expect( stalePreserved ).toBeTrue();
                 expect( repeatedFix.exitCode ).toBe( 0 );
@@ -271,9 +285,9 @@ class extends="testbox.system.BaseSpec" {
                 var zshProfile = fileRead( userHome & "/.zshrc" );
                 var zshStartup = systemExecute(
                     name: "bash",
-                    arguments: [ "--noprofile", "--norc", "-c", 'source "$HOME/.zshrc"; source "$HOME/.zshrc"; echo "$MVM_HOME"; echo "$PATH"' ],
+                    arguments: [ "--noprofile", "--norc", "-c", 'source "$HOME/.zshrc"; source "$HOME/.zshrc"; echo "$MVM_HOME"; echo "$MATCHBOX_HOME"; echo "$PATH"' ],
                     timeout: 10,
-                    environment: { HOME: userHome, MVM_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
+                    environment: { HOME: userHome, MVM_HOME: "", MATCHBOX_HOME: "", PATH: getsystemsetting( "PATH", "" ) }
                 );
                 options.environment.SHELL = "/usr/bin/fish";
                 options.environment.MVM_HOME = userHome & "/fish-mvm";
@@ -310,17 +324,69 @@ class extends="testbox.system.BaseSpec" {
                 expect( zshStartup.exitCode ).toBe( 0 );
                 expect( zshStartup.output ).toInclude( mvmHome );
                 expect( arrayLen( reMatchNoCase( "custom-mvm/bin", zshStartup.output ) ) ).toBe( 1 );
+                expect( zshStartup.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", zshStartup.output ) ) ).toBe( 1 );
                 expect( zshProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
                 expect( zshProfile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
                 expect( fishFix.exitCode ).toBe( 0 );
                 expect( fileExists( fishInit ) ).toBeTrue();
                 expect( fileRead( fishInit ) ).toInclude( 'set -gx PATH "$MVM_HOME/bin" $PATH' );
+                expect( fileRead( fishInit ) ).toInclude( 'set -gx MATCHBOX_HOME "$HOME/.matchbox"' );
+                expect( fileRead( fishInit ) ).toInclude( '$MATCHBOX_HOME/bin' );
                 expect( fishProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.fish' );
                 expect( windowsFix.exitCode ).toBe( 0 );
                 expect( fileExists( windowsInit ) ).toBeTrue();
                 expect( fileRead( windowsInit ) ).toInclude( '$env:Path' );
+                expect( fileRead( windowsInit ) ).toInclude( '$env:MATCHBOX_HOME' );
+                expect( fileRead( windowsInit ) ).toInclude( '$matchboxBin' );
                 expect( powershellProfile ).toInclude( "scripts/mvm-init.ps1" );
                 expect( powershellProfile ).notToInclude( "-notlike" );
+            } );
+
+            it( "honors an explicit MATCHBOX_HOME and defaults it when unset", function() {
+                if ( getsystemsetting( "OS", "" ).lCase().contains( "windows" ) ) return;
+
+                var userHome = variables.mvmHome & "/matchbox-home-user";
+                var mvmHome = userHome & "/custom-mvm";
+                var customMatchboxHome = userHome & "/custom-matchbox";
+                directoryCreate( userHome );
+                var options = {
+                    name: getsystemsetting( "MVM_BIN", "" ),
+                    arguments: [ "doctor", "--fix" ],
+                    timeout: 30,
+                    environment: {
+                        HOME: userHome,
+                        MVM_HOME: mvmHome,
+                        MATCHBOX_HOME: customMatchboxHome,
+                        SHELL: "/bin/bash",
+                        PATH: mvmHome & "/bin:" & getsystemsetting( "PATH", "" )
+                    }
+                };
+                var fixed = systemExecute( argumentCollection=options );
+                var initFile = mvmHome & "/scripts/mvm-init.sh";
+                var configuredCommand = 'source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"';
+                var fallbackCommand = 'unset MATCHBOX_HOME; source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"';
+                var configured = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", configuredCommand ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, MATCHBOX_HOME: customMatchboxHome, PATH: getsystemsetting( "PATH", "" ) }
+                );
+                var fallback = systemExecute(
+                    name="bash",
+                    arguments=[ "--noprofile", "--norc", "-c", fallbackCommand ],
+                    timeout=10,
+                    environment={ HOME: userHome, MVM_HOME: mvmHome, PATH: getsystemsetting( "PATH", "" ) }
+                );
+
+                expect( fixed.exitCode ).toBe( 0 );
+                expect( fileRead( initFile ) ).toInclude( 'MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"' );
+                expect( configured.exitCode ).toBe( 0 );
+                expect( configured.output ).toInclude( customMatchboxHome );
+                expect( configured.output ).toInclude( customMatchboxHome & "/bin" );
+                expect( fallback.exitCode ).toBe( 0 );
+                expect( fallback.output ).toInclude( userHome & "/.matchbox" );
+                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", fallback.output ) ) ).toBe( 1 );
             } );
 
             it( "asks before updating MVM on interactive startup", function() {
@@ -399,6 +465,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( matchbox.output & matchbox.error ).toInclude( versions[ 1 ] );
                 expect( doctor.exitCode ).toBe( 0 );
                 expect( doctor.output & doctor.error ).toInclude( "Active MatchBox: " & versions[ 1 ] );
+                expect( doctor.output & doctor.error ).toInclude( "MATCHBOX_HOME: " );
                 expect( removed.output & removed.error ).toInclude( "removed" );
                 expect( currentAfterRemove.output ).toInclude( "No MatchBox version is active" );
                 expect( listAfterRemove.output ).toInclude( "No MatchBox versions installed" );

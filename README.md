@@ -1,6 +1,6 @@
 # MatchBox Version Manager (MVM)
 
-MVM installs and runs MatchBox releases side by side. It stores versions under `~/.mvm` by default (`MVM_HOME` overrides this).
+MVM installs and runs MatchBox releases side by side. It stores versions under `~/.mvm` by default (`MVM_HOME` overrides this) and initializes the MatchBox runtime home at `~/.matchbox` (`MATCHBOX_HOME` overrides this).
 
 ## Install
 
@@ -18,7 +18,16 @@ irm https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/mai
 
 The installer defaults to the latest stable release. Set `MVM_VERSION` to an exact version to install a snapshot instead, for example `curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | MVM_VERSION=2.0.1-snapshot bash`.
 
-The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. Bash completions are also installed for commands and installed versions. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and Bash completions.
+The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. That script exports both `MVM_HOME` and `MATCHBOX_HOME` and adds both `bin` directories to `PATH`. Bash completions are also installed for commands and installed versions. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and Bash completions.
+
+### Environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `MVM_HOME` | MVM versions, cache, and current-version marker | `~/.mvm` |
+| `MATCHBOX_HOME` | MatchBox runtime config, logs, and modules | `~/.matchbox` |
+
+A value you already exported is preserved; the defaults apply only when the variable is unset.
 
 ## Use
 
@@ -55,7 +64,7 @@ Build with an installed MatchBox compiler, or set `MATCHBOX_BIN` to its path:
 ./tests/integration/run.sh
 ```
 
-The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases.
+The integration suite needs MatchBox, CommandBox (to install TestBox on first run), and network access for real GitHub releases. CI also runs the suite across Linux, macOS, and Windows runners plus a container smoke suite on Debian, Ubuntu, Fedora, and Arch; MVM's native binary is glibc-linked, so Alpine is not part of the container matrix.
 
 ## Releases
 

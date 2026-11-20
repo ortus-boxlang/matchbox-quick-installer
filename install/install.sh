@@ -3,6 +3,8 @@ set -euo pipefail
 
 REPOSITORY="ortus-boxlang/matchbox-quick-installer"
 MVM_HOME="${MVM_HOME:-$HOME/.mvm}"
+MATCHBOX_HOME="${MATCHBOX_HOME:-$HOME/.matchbox}"
+export MATCHBOX_HOME
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 

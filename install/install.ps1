@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $repository = "ortus-boxlang/matchbox-quick-installer"
 $mvmHome = if ($env:MVM_HOME) { $env:MVM_HOME } else { Join-Path $HOME ".mvm" }
+$matchboxHome = if ($env:MATCHBOX_HOME) { $env:MATCHBOX_HOME } else { Join-Path $HOME ".matchbox" }
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 
 if ($architecture -notin @("X64", "Arm64")) {
@@ -23,13 +24,19 @@ if ($releaseVersion -eq "latest") {
 
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 try {
-    Invoke-WebRequest -Uri $url -OutFile $tempBinary -UseBasicParsing
+    $localBinary = if ($env:MVM_BIN) { $env:MVM_BIN } else { "" }
+    if ($localBinary -and (Test-Path -LiteralPath $localBinary)) {
+        Copy-Item -LiteralPath $localBinary -Destination $tempBinary -Force
+    } else {
+        Invoke-WebRequest -Uri $url -OutFile $tempBinary -UseBasicParsing
+    }
     Move-Item -Path $tempBinary -Destination $binary -Force
 } finally {
     if (Test-Path $tempBinary) { Remove-Item $tempBinary -Force }
 }
 
 [Environment]::SetEnvironmentVariable("MVM_HOME", $mvmHome, "User")
+[Environment]::SetEnvironmentVariable("MATCHBOX_HOME", $matchboxHome, "User")
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $pathEntries = @($userPath -split ";" | Where-Object { $_ })
 if ($pathEntries -notcontains $installDir) {
@@ -37,6 +44,7 @@ if ($pathEntries -notcontains $installDir) {
     [Environment]::SetEnvironmentVariable("Path", $userPath, "User")
 }
 $env:MVM_HOME = $mvmHome
+$env:MATCHBOX_HOME = $matchboxHome
 if (($env:Path -split ";") -notcontains $installDir) { $env:Path = "$installDir;$env:Path" }
 
 $previousMvmProfile = $env:MVM_PROFILE
