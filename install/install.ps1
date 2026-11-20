@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $repository = "ortus-boxlang/matchbox-quick-installer"
 $mvmHome = if ($env:MVM_HOME) { $env:MVM_HOME } else { Join-Path $HOME ".mvm" }
+$matchboxHome = if ($env:MATCHBOX_HOME) { $env:MATCHBOX_HOME } else { Join-Path $HOME ".matchbox" }
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 
 if ($architecture -notin @("X64", "Arm64")) {
@@ -23,13 +24,19 @@ if ($releaseVersion -eq "latest") {
 
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 try {
-    Invoke-WebRequest -Uri $url -OutFile $tempBinary -UseBasicParsing
+    $localBinary = if ($env:MVM_BIN) { $env:MVM_BIN } else { "" }
+    if ($localBinary -and (Test-Path -LiteralPath $localBinary)) {
+        Copy-Item -LiteralPath $localBinary -Destination $tempBinary -Force
+    } else {
+        Invoke-WebRequest -Uri $url -OutFile $tempBinary -UseBasicParsing
+    }
     Move-Item -Path $tempBinary -Destination $binary -Force
 } finally {
     if (Test-Path $tempBinary) { Remove-Item $tempBinary -Force }
 }
 
 [Environment]::SetEnvironmentVariable("MVM_HOME", $mvmHome, "User")
+[Environment]::SetEnvironmentVariable("MATCHBOX_HOME", $matchboxHome, "User")
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $pathEntries = @($userPath -split ";" | Where-Object { $_ })
 if ($pathEntries -notcontains $installDir) {
@@ -37,21 +44,18 @@ if ($pathEntries -notcontains $installDir) {
     [Environment]::SetEnvironmentVariable("Path", $userPath, "User")
 }
 $env:MVM_HOME = $mvmHome
+$env:MATCHBOX_HOME = $matchboxHome
 if (($env:Path -split ";") -notcontains $installDir) { $env:Path = "$installDir;$env:Path" }
 
-if ($PROFILE) {
-    $profileDir = Split-Path -Parent $PROFILE
-    New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-    if (-not (Test-Path $PROFILE) -or -not (Select-String -Path $PROFILE -SimpleMatch "# MVM" -Quiet)) {
-        $homeLiteral = "'" + $mvmHome.Replace("'", "''") + "'"
-        $binLiteral = "'" + $installDir.Replace("'", "''") + "'"
-        @"
-# MVM
-`$env:MVM_HOME = $homeLiteral
-if (`$env:Path -notlike (`$binLiteral + ';*')) { `$env:Path = `$binLiteral + ';' + `$env:Path }
-"@ | Add-Content -Path $PROFILE
-    }
+$previousMvmProfile = $env:MVM_PROFILE
+$env:MVM_PROFILE = $PROFILE
+try {
+    & $binary doctor --fix
+    if ($LASTEXITCODE -ne 0) { throw "MVM shell initialization failed with exit code $LASTEXITCODE." }
+} finally {
+    if ($null -eq $previousMvmProfile) { Remove-Item Env:MVM_PROFILE -ErrorAction SilentlyContinue }
+    else { $env:MVM_PROFILE = $previousMvmProfile }
 }
 
 Write-Host "MVM installed at $binary"
-Write-Host "Restart PowerShell to use mvm in new terminals."
+Write-Host "Restart PowerShell to use MVM in new terminals."
