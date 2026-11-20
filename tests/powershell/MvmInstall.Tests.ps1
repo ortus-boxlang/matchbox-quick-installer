@@ -40,6 +40,7 @@ try {
         Assert-Contains 'https://matchbox.boxlang.io/' $installerOutput 'installer shows product URL'
         Assert-Contains 'Installation plan' $installerOutput 'installer shows plan'
         Assert-Contains 'MATCHBOX VERSION MANAGER' $installerOutput 'installer shows product name'
+        Assert-Contains '. $PROFILE' $installerOutput 'installer tells user what to source'
 
         $installDir = Join-Path $mvmHome 'bin'
         Assert-Equal $mvmHome ([Environment]::GetEnvironmentVariable('MVM_HOME', [EnvironmentVariableTarget]::User)) 'User MVM_HOME'

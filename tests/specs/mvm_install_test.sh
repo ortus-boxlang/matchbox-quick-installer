@@ -73,6 +73,7 @@ if printf '%s' "$INSTALL_OUTPUT" | grep -Fq 'Install the latest MatchBox runtime
     fail "non-interactive install did not prompt"
 fi
 assert_contains 'mvm install latest' "$INSTALL_OUTPUT" "non-interactive install prints quick start"
+assert_contains 'source ~/.bashrc' "$INSTALL_OUTPUT" "installer tells user what to source"
 
 HELP_OUTPUT="$(bash "$PROJECT_ROOT/install/install.sh" --help)"
 assert_contains 'Usage: install.sh' "$HELP_OUTPUT" "help flag works"

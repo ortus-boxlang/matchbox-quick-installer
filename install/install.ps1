@@ -58,18 +58,18 @@ if (-not $env:NO_COLOR -and $Host.Name -eq "ConsoleHost") {
 $interactive = -not $NON_INTERACTIVE -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected
 
 $logo = @(
-    '      ▄▄████████▄▄'
-    '    ▄██████████████▄'
-    '   ███       ▄███████'
-    '  ███       █████████'
-    '  ███      ▄█████████'
-    '  ██      ▄██████████'
-    '  ██     ████▀▀██████'
-    '  ██    ███▀   ▀██████'
-    '   ███  ██      ▀█████'
-    '    ████         █████'
-    '      ▀██████████████▀'
-    '        ▀▀████████▀▀'
+    '  ▄██████████████████████▄'
+    '▄██▀▀          ▄▄      ▀▀██▄'
+    '██▀          ▄███        ███'
+    '██          ▄█████▄       ██'
+    '██     ▄▄   ████████▄     ██'
+    '██    ▄███▄ █████████▄    ██'
+    '██    ████████  ██████    ██'
+    '██    █████▀██   ▀████    ██'
+    '██     ████       ███▀    ██'
+    '██▄     ▀██▄▄   ▄██▀     ███'
+    '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+    '  ▀██████████████████████▀'
 )
 $logoColors = @(
     "38;2;0;255;120", "38;2;0;247;140", "38;2;0;238;158", "38;2;0;229;177",
@@ -136,12 +136,15 @@ function Select-YesNo {
 
     $labels = @($YesLabel, $NoLabel)
     $active = 0
+    Write-Host ""
     $origin = $Host.UI.RawUI.CursorPosition
 
     function Draw-Prompt {
         $Host.UI.RawUI.CursorPosition = $origin
-        Write-Host "  ${COLOR_BOLD}${COLOR_ACCENT}${Question}${COLOR_RESET}"
-        Write-Host ""
+        $lines = @(
+            "  ${COLOR_BOLD}${COLOR_ACCENT}${Question}${COLOR_RESET}"
+            ""
+        )
         for ($i = 0; $i -lt $labels.Count; $i++) {
             $marker = " "
             $color = $COLOR_RESET
@@ -149,10 +152,11 @@ function Select-YesNo {
                 $marker = "›"
                 $color = "$COLOR_ACCENT$COLOR_BOLD"
             }
-            Write-Host ("  {0}{1}  {2}{3}" -f $color, $marker, $labels[$i], $COLOR_RESET)
+            $lines += ("  {0}{1}  {2}{3}" -f $color, $marker, $labels[$i], $COLOR_RESET)
         }
-        Write-Host ""
-        Write-Host "  ${COLOR_DIM}↑/↓ choose · Enter continue · Esc skip${COLOR_RESET}"
+        $lines += ""
+        $lines += "  ${COLOR_DIM}↑/↓ choose · Enter continue · Esc skip${COLOR_RESET}"
+        foreach ($line in $lines) { Write-Host $line.PadRight(72) }
     }
 
     Draw-Prompt
@@ -161,23 +165,27 @@ function Select-YesNo {
         switch ($key.VirtualKeyCode) {
             38 { $active = 0; Draw-Prompt } # Up
             40 { $active = 1; Draw-Prompt } # Down
-            13 { return $active -eq 0 }     # Enter
-            27 { return $false }            # Esc
+            13 { Draw-Prompt; return $active -eq 0 } # Enter
+            27 { Draw-Prompt; return $false }        # Esc
         }
     }
 }
 
 function Install-Runtime {
     Write-Section "Installing MatchBox"
+    Write-Progress -Activity "Installing MatchBox" -Status "Downloading latest release" -PercentComplete 0
     Invoke-Step "Downloaded and installed the latest MatchBox" { & $binary install latest }
+    Write-Progress -Activity "Installing MatchBox" -Status "Activating release" -PercentComplete 85
     Invoke-Step "Activated the latest MatchBox" { & $binary use latest }
+    Write-Progress -Activity "Installing MatchBox" -Completed
     Write-Host "`n  MatchBox is ready."
 }
 
 function Show-Summary {
     Write-Section "MVM is ready"
     Write-Info "MVM installed at $binary"
-    Write-Host "`n  ${COLOR_DIM}Restart your shell or source your shell profile.${COLOR_RESET}"
+    Write-Host "`n  To use MVM in this terminal:"
+    Write-Host "    . `$PROFILE"
     Write-Host "`n  ${COLOR_BOLD}Quick start:${COLOR_RESET}"
     Write-Host "    mvm install latest"
     Write-Host "    mvm use latest"
@@ -222,8 +230,16 @@ Invoke-Step "Configured shell integration" { & $binary doctor --fix }
 
 if ($NON_INTERACTIVE) {
     Install-Runtime
-} elseif ($interactive -and (Select-YesNo "Install the latest MatchBox runtime now?" "Yes, install and use it" "No, maybe later")) {
-    Install-Runtime
+} elseif ($interactive) {
+    if (Select-YesNo "Install the latest MatchBox runtime now?" "Yes, install and use it" "No, maybe later") {
+        Install-Runtime
+    } else {
+        Write-Host "`n  MatchBox install skipped. Install it later with:"
+        Write-Host "    mvm install latest"
+        Write-Host "    mvm use latest"
+        Write-Host "`n  ${COLOR_DIM}Learn more: ${productUrl}${COLOR_RESET}`n"
+        exit 0
+    }
 }
 
 Show-Summary

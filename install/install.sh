@@ -58,18 +58,18 @@ fi
 
 show_banner() {
     local -a lines=(
-        '      ▄▄████████▄▄'
-        '    ▄██████████████▄'
-        '   ███       ▄███████'
-        '  ███       █████████'
-        '  ███      ▄█████████'
-        '  ██      ▄██████████'
-        '  ██     ████▀▀██████'
-        '  ██    ███▀   ▀██████'
-        '   ███  ██      ▀█████'
-        '    ████         █████'
-        '      ▀██████████████▀'
-        '        ▀▀████████▀▀'
+        '  ▄██████████████████████▄'
+        '▄██▀▀          ▄▄      ▀▀██▄'
+        '██▀          ▄███        ███'
+        '██          ▄█████▄       ██'
+        '██     ▄▄   ████████▄     ██'
+        '██    ▄███▄ █████████▄    ██'
+        '██    ████████  ██████    ██'
+        '██    █████▀██   ▀████    ██'
+        '██     ████       ███▀    ██'
+        '██▄     ▀██▄▄   ▄██▀     ███'
+        '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+        '  ▀██████████████████████▀'
     )
     local -a colors=(
         $'\033[38;2;0;255;120m' $'\033[38;2;0;247;140m'
@@ -78,6 +78,8 @@ show_banner() {
         $'\033[38;2;0;201;230m' $'\033[38;2;0;192;247m'
         $'\033[38;2;0;183;255m' $'\033[38;2;0;174;255m'
         $'\033[38;2;0;165;255m' $'\033[38;2;0;155;255m'
+        $'\033[38;2;0;148;255m' $'\033[38;2;0;141;255m'
+        $'\033[38;2;0;135;255m' $'\033[38;2;0;130;255m'
     )
     local i color=""
     printf '\n'
@@ -129,6 +131,36 @@ run_command() {
     fi
 }
 
+run_task_progress() {
+    local label="$1" output="$TEMP_DIR/progress.log"
+    shift
+    local pid percent=0 filled bar
+    if [[ "$RICH_TERMINAL" != "yes" ]]; then
+        run_command "$label" "$@"
+        return
+    fi
+    "$@" >"$output" 2>&1 &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        percent=$((percent + 2))
+        if ((percent > 95)); then percent=95; fi
+        filled=$((percent / 4))
+        bar=""
+        for ((i = 0; i < 25; i++)); do
+            if ((i < filled)); then bar+='█'; else bar+='░'; fi
+        done
+        printf '\r  %s%s%s  %-38s [%s] %3d%%' "$COLOR_ACCENT" '⠋' "$COLOR_RESET" "$label" "$bar" "$percent"
+        sleep 0.2
+    done
+    if wait "$pid"; then
+        printf '\r  %s✓%s  %-38s [%s] 100%%\n' "$COLOR_SUCCESS" "$COLOR_RESET" "$label" '█████████████████████████'
+    else
+        printf '\r\n'
+        cat "$output" >&2
+        die "$label failed"
+    fi
+}
+
 read_menu_key() {
     local continuation
     MENU_KEY=""
@@ -160,8 +192,10 @@ select_yes_no() {
         esac
     fi
 
-    printf '\n\n\n\n\n'
-    printf '\033[%dA\0337\033[?25l' 5
+    printf '\n'
+    local prompt_lines=7
+    printf '%*s' "$prompt_lines" '' | tr ' ' '\n'
+    printf '\033[%dA\0337\033[?25l' "$prompt_lines"
     CURSOR_SAVED=yes
     while true; do
         printf '\0338\033[J'
@@ -215,15 +249,25 @@ show_plan() {
 
 install_runtime() {
     section "Installing MatchBox"
-    run_command "Downloaded and installed the latest MatchBox" "$BINARY" install latest
+    run_task_progress "Downloading MatchBox" "$BINARY" install latest
     run_command "Activated the latest MatchBox" "$BINARY" use latest
     printf '\n  MatchBox is ready.\n'
+}
+
+profile_source_hint() {
+    local shell_name="${SHELL##*/}"
+    case "$shell_name" in
+        zsh) printf 'source ~/.zshrc' ;;
+        fish) printf 'source ~/.config/fish/config.fish' ;;
+        *) printf 'source ~/.bashrc' ;;
+    esac
 }
 
 show_summary() {
     section "MVM is ready"
     info "MVM installed at $BINARY"
-    printf '\n  %sRestart your shell or source your shell profile.%s\n' "$COLOR_DIM" "$COLOR_RESET"
+    printf '\n  To use MVM in this terminal:\n'
+    printf '    %s\n' "$(profile_source_hint)"
     printf '\n  %sQuick start:%s\n' "$COLOR_BOLD" "$COLOR_RESET"
     printf '    mvm install latest\n    mvm use latest\n    matchbox --version\n'
     printf '\n  %sLearn more: %s%s\n\n' "$COLOR_DIM" "$PRODUCT_URL" "$COLOR_RESET"
@@ -275,11 +319,19 @@ run_command "Configured shell integration" "$BINARY" doctor --fix
 
 if [[ "$NON_INTERACTIVE" == "yes" ]]; then
     install_runtime
-elif [[ -n "$PROMPT_DEVICE" ]] && select_yes_no \
-    "Install the latest MatchBox runtime now?" \
-    "Yes, install and use it" \
-    "No, maybe later"; then
-    install_runtime
+elif [[ -n "$PROMPT_DEVICE" ]]; then
+    if select_yes_no \
+        "Install the latest MatchBox runtime now?" \
+        "Yes, install and use it" \
+        "No, maybe later"; then
+        install_runtime
+    else
+        printf '\n  MatchBox install skipped. Install it later with:\n'
+        printf '    mvm install latest\n'
+        printf '    mvm use latest\n'
+        printf '\n  %sLearn more: %s%s\n\n' "$COLOR_DIM" "$PRODUCT_URL" "$COLOR_RESET"
+        exit 0
+    fi
 fi
 
 show_summary
