@@ -18,6 +18,12 @@ irm https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/mai
 
 The installer defaults to the latest stable release. Set `MVM_VERSION` to an exact version to install a snapshot instead, for example `curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | MVM_VERSION=2.0.1-snapshot bash`.
 
+On a real terminal the installer shows a branded plan and asks whether to install the latest MatchBox runtime immediately after MVM is ready. For scripted installs, pass `--yes` (or set `MVM_NON_INTERACTIVE=1`) to accept the recommended flow without prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ortus-boxlang/matchbox-quick-installer/main/install/install.sh | bash -s -- --yes
+```
+
 The installer adds MVM to your user PATH and installs a shell initialization script for Bash, Zsh, Fish, or PowerShell. That script exports both `MVM_HOME` and `MATCHBOX_HOME` and adds both `bin` directories to `PATH`. Bash completions are also installed for commands and installed versions. On macOS it connects `.bash_profile` to `.bashrc` when needed for login Bash. Restart your shell afterward. Run `mvm doctor --fix` to install or repair shell initialization and Bash completions.
 
 ### Environment variables

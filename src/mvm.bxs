@@ -15,6 +15,15 @@ if ( !directoryExists( MVM_HOME ) ) directoryCreate( MVM_HOME );
 if ( !directoryExists( MVM_VERSIONS ) ) directoryCreate( MVM_VERSIONS );
 if ( !directoryExists( MVM_CACHE ) ) directoryCreate( MVM_CACHE );
 
+/**
+ * Perform a GitHub API request and decode the JSON response, using GITHUB_TOKEN/GH_TOKEN when available.
+ *
+ * @param url URL to request or download.
+ * @param failFast Whether to exit immediately on failure.
+ * @param timeout Timeout in seconds.
+ *
+ * @return Decoded GitHub response.
+ */
 function githubJson( url, failFast=true, timeout=30 ) {
     var response = {};
     var headers = { "User-Agent": "MVM" };
@@ -45,10 +54,22 @@ function githubJson( url, failFast=true, timeout=30 ) {
     }
 }
 
+/**
+ * Detect whether MVM is running on Windows.
+ *
+ * @return True on Windows.
+ */
 function isWindows() {
     return getsystemsetting( "OS", "" ).lCase() contains "windows";
 }
 
+/**
+ * Build the release asset name for the current OS and architecture.
+ *
+ * @param prefix Asset name prefix.
+ *
+ * @return Platform asset name.
+ */
 function getPlatformAssetName( prefix="matchbox" ) {
     var windows = isWindows();
     var os = "";
@@ -79,11 +100,23 @@ function getPlatformAssetName( prefix="matchbox" ) {
     return prefix & "-" & os & "-" & arch & ( windows ? ".exe" : "" );
 }
 
+/**
+ * Normalize a version tag by trimming whitespace and a leading v.
+ *
+ * @param version Version string.
+ *
+ * @return Normalized version.
+ */
 function normalizeVersion( version ) {
     version = trim( version );
     return version.startsWith( "v" ) ? listLast( version, "v" ) : version;
 }
 
+/**
+ * Fetch all MatchBox releases with version metadata.
+ *
+ * @return Release array.
+ */
 function getRemoteReleases() {
     var releases = githubJson( MATCHBOX_GITHUB_API & "/releases?per_page=100" );
     var assetName = getPlatformAssetName();
@@ -98,6 +131,11 @@ function getRemoteReleases() {
     return available;
 }
 
+/**
+ * Print the available MatchBox releases.
+ *
+ * @return Nothing.
+ */
 function listRemoteVersions() {
     var releases = getRemoteReleases();
     println( "Available MatchBox versions:" );
@@ -110,10 +148,25 @@ function listRemoteVersions() {
     }
 }
 
+/**
+ * Validate that a version tag is safe to use as a directory name.
+ *
+ * @param version Version string.
+ *
+ * @return True when valid.
+ */
 function isValidVersion( version ) {
     return reFind( "^[A-Za-z0-9][A-Za-z0-9.+_-]*$", version ) == 1;
 }
 
+/**
+ * Compare two semantic version strings.
+ *
+ * @param left Left version to compare.
+ * @param right Right version to compare.
+ *
+ * @return 1, -1, or 0.
+ */
 function compareVersions( left, right ) {
     var leftParts = listToArray( listFirst( left, "-" ), "." );
     var rightParts = listToArray( listFirst( right, "-" ), "." );
@@ -130,6 +183,13 @@ function compareVersions( left, right ) {
     return 0;
 }
 
+/**
+ * Read the installed MVM version from a binary.
+ *
+ * @param binaryPath Path to the MVM binary.
+ *
+ * @return Version string or empty.
+ */
 function getInstalledMvmVersion( binaryPath ) {
     if ( !fileExists( binaryPath ) ) return "";
     try {
@@ -141,6 +201,13 @@ function getInstalledMvmVersion( binaryPath ) {
     }
 }
 
+/**
+ * Read the installed MVM commit from a binary.
+ *
+ * @param binaryPath Path to the MVM binary.
+ *
+ * @return Commit hash or empty.
+ */
 function getInstalledMvmCommit( binaryPath ) {
     if ( !fileExists( binaryPath ) ) return "";
     try {
@@ -152,11 +219,25 @@ function getInstalledMvmCommit( binaryPath ) {
     }
 }
 
+/**
+ * Extract the source commit from MVM release metadata.
+ *
+ * @param release GitHub release struct.
+ *
+ * @return Commit hash or empty.
+ */
 function getMvmReleaseCommit( release ) {
     var commits = reMatchNoCase( "Commit: [0-9a-f]{7,40}", release.body ?: "" );
     return arrayLen( commits ) ? listLast( commits[ 1 ], " " ).lCase() : "";
 }
 
+/**
+ * Fetch the latest MVM GitHub release.
+ *
+ * @param failFast Whether to exit immediately on failure.
+ *
+ * @return Release struct.
+ */
 function getLatestMvmRelease( failFast=true ) {
     if ( right( MVM_VERSION, 9 ) == "-snapshot" ) {
         var releases = githubJson( MVM_GITHUB_API & "/releases?per_page=100", false, failFast ? 30 : 5 );
@@ -173,6 +254,13 @@ function getLatestMvmRelease( failFast=true ) {
     return githubJson( MVM_GITHUB_API & "/releases/latest", failFast, failFast ? 30 : 5 );
 }
 
+/**
+ * Resolve GitHub release information for a requested MatchBox version.
+ *
+ * @param version Version string.
+ *
+ * @return Release struct.
+ */
 function getReleaseInfo( version ) {
     version = normalizeVersion( version );
     if ( !isValidVersion( version ) ) {
@@ -186,6 +274,13 @@ function getReleaseInfo( version ) {
     return release;
 }
 
+/**
+ * Download and decode a MatchBox release version.json file.
+ *
+ * @param release GitHub release struct.
+ *
+ * @return Metadata struct.
+ */
 function getReleaseMetadata( release ) {
     var url = findReleaseAsset( release, "version.json" );
     if ( !len( url ) ) {
@@ -205,21 +300,52 @@ function getReleaseMetadata( release ) {
     return metadata;
 }
 
+/**
+ * Read version.json metadata for an installed version.
+ *
+ * @param version Version string.
+ *
+ * @return Metadata struct.
+ */
 function getInstalledMetadata( version ) {
     var path = MVM_VERSIONS & "/" & version & "/version.json";
     return fileExists( path ) ? jsonDeserialize( fileRead( path ) ) : {};
 }
 
+/**
+ * Compare installed and published snapshot build metadata.
+ *
+ * @param installed Installed metadata struct.
+ * @param published Published metadata struct.
+ *
+ * @return True when builds match.
+ */
 function sameBuild( installed, published ) {
     return ( installed.build_version ?: "" ) == published.build_version && ( installed.revision ?: "" ) == published.revision;
 }
 
+/**
+ * Build a human-readable MatchBox version label.
+ *
+ * @param version Version string.
+ * @param metadata Release metadata struct.
+ *
+ * @return Display label.
+ */
 function versionLabel( version, metadata={} ) {
     return metadata.keyExists( "build_version" )
         ? version & " [" & metadata.build_version & ", " & left( metadata.revision, 7 ) & "]"
         : version;
 }
 
+/**
+ * Find a release asset URL by file name.
+ *
+ * @param release GitHub release struct.
+ * @param assetName Release asset file name.
+ *
+ * @return Asset URL or empty.
+ */
 function findReleaseAsset( release, assetName ) {
     for ( asset in release.assets ) {
         if ( asset.name == assetName ) return asset.browser_download_url;
@@ -227,6 +353,136 @@ function findReleaseAsset( release, assetName ) {
     return "";
 }
 
+/**
+ * Render a single terminal download progress frame.
+ *
+ * @param label Display label.
+ * @param downloaded Number of bytes downloaded.
+ * @param total Total expected bytes.
+ * @param percent Download percentage.
+ *
+ * @return Nothing.
+ */
+function renderDownloadProgress( label, downloaded, total, percent ) {
+    var width = 25;
+    var filled = total > 0 ? int( percent * width / 100 ) : 0;
+    var bar = repeatString( "█", filled ) & repeatString( "░", width - filled );
+    var suffix = total > 0 ? right( "  " & percent, 3 ) & "%" : right( "          " & val( downloaded ), 10 ) & " B";
+    writeOutput( char( 13 ) & "  " & label & " [" & bar & "] " & suffix );
+}
+
+/**
+ * Quote a path for POSIX shell command lines.
+ *
+ * @param path Filesystem path.
+ *
+ * @return Single-quoted shell path.
+ */
+function shellQuotePath( path ) {
+    return char( 39 ) & replace( path, char( 39 ), char( 39 ) & char( 92 ) & char( 39 ) & char( 39 ), "all" ) & char( 39 );
+}
+
+/**
+ * Quote a path for Windows cmd.exe command lines.
+ *
+ * @param path Filesystem path.
+ *
+ * @return Double-quoted Windows path.
+ */
+function windowsQuotePath( path ) {
+    return char( 34 ) & replace( path, char( 34 ), char( 34 ) & char( 34 ), "all" ) & char( 34 );
+}
+
+/**
+ * Download a MatchBox release asset, with a progress bar on interactive terminals.
+ *
+ * @param url URL to request or download.
+ * @param path Filesystem path.
+ * @param label Display label.
+ * @param totalBytes Expected asset size from release metadata.
+ *
+ * @return HTTP response struct.
+ */
+function downloadMatchBoxAsset( url, path, label, totalBytes ) {
+    if ( !cliIsTerminal() || totalBytes <= 0 ) {
+        return http({
+            url: url,
+            path: path,
+            timeout: 180
+        }).get();
+    }
+
+    var chunkFiles = [];
+    var chunkSize = 4 * 1024 * 1024;
+    var downloaded = 0;
+    try {
+        while ( downloaded < totalBytes ) {
+            var start = downloaded;
+            var end = min( downloaded + chunkSize - 1, totalBytes - 1 );
+            var chunkPath = path & ".part-" & arrayLen( chunkFiles ) + 1;
+            var raw = http({
+                url: url,
+                headers: { "Range": "bytes=" & start & "-" & end },
+                path: chunkPath,
+                timeout: 180
+            }).get();
+            var response = isStruct( raw ) ? raw : jsonDeserialize( raw );
+            if ( response.status != 206 && response.status != 200 ) {
+                throw( message="Range download failed with HTTP " & ( response.status ?: "unknown" ) );
+            }
+            var chunkSizeOnDisk = fileInfo( chunkPath ).size;
+            if ( !chunkSizeOnDisk ) break;
+            arrayAppend( chunkFiles, chunkPath );
+            downloaded += chunkSizeOnDisk;
+            renderDownloadProgress( label, downloaded, totalBytes, min( 100, int( downloaded * 100 / totalBytes ) ) );
+        }
+
+        if ( arrayLen( chunkFiles ) == 1 ) {
+            fileMove( chunkFiles[ 1 ], path );
+        } else {
+            var concatenation = "";
+            if ( isWindows() ) {
+                for ( var chunkFile in chunkFiles ) concatenation &= windowsQuotePath( chunkFile ) & "+";
+                concatenation = left( concatenation, len( concatenation ) - 1 ) & " " & windowsQuotePath( path ) & " >nul";
+                systemExecute( "cmd", [ "/c", "copy /b " & concatenation ], 60 );
+            } else {
+                for ( var chunkFile in chunkFiles ) concatenation &= shellQuotePath( chunkFile ) & " ";
+                concatenation = "cat " & trim( concatenation ) & " > " & shellQuotePath( path );
+                systemExecute( "sh", [ "-c", concatenation ], 60 );
+            }
+            for ( var chunkFile in chunkFiles ) fileDelete( chunkFile );
+        }
+        if ( downloaded < totalBytes ) renderDownloadProgress( label, downloaded, totalBytes, 100 );
+        writeOutput( char( 13 ) & repeatString( " ", 90 ) & char( 13 ) );
+        return { status: 200 };
+    } finally {
+        for ( var chunkFile in chunkFiles ) if ( fileExists( chunkFile ) ) fileDelete( chunkFile );
+    }
+}
+
+/**
+ * Find the published size of a release asset.
+ *
+ * @param release GitHub release struct.
+ * @param assetName Release asset file name.
+ *
+ * @return Asset size in bytes, or zero when unavailable.
+ */
+function findReleaseAssetSize( release, assetName ) {
+    for ( asset in release.assets ) {
+        if ( asset.name == assetName ) return val( asset.size ?: 0 );
+    }
+    return 0;
+}
+
+/**
+ * Compute the SHA-256 checksum of a downloaded file.
+ *
+ * @param path Filesystem path.
+ * @param assetName Release asset file name.
+ *
+ * @return Lowercase checksum.
+ */
 function downloadChecksum( path, assetName ) {
     var result = {};
     if ( isWindows() ) {
@@ -239,9 +495,17 @@ function downloadChecksum( path, assetName ) {
     }
     if ( result.exitCode != 0 ) throw( message="SHA-256 command failed: " & result.error );
     // SHA tools can prefix escaped filenames with a backslash.
-    return left( replace( trim( result.output ), chr( 92 ), "", "one" ), 64 ).lCase();
+    return left( replace( trim( result.output ), char( 92 ), "", "one" ), 64 ).lCase();
 }
 
+/**
+ * Download, verify, stage, and activate a MatchBox version.
+ *
+ * @param requestedVersion User-requested version.
+ * @param force Whether to reinstall an existing version.
+ *
+ * @return Installed version.
+ */
 function installVersion( requestedVersion, force=false ) {
     var release = getReleaseInfo( len( trim( requestedVersion ) ) ? requestedVersion : "latest" );
     var version = normalizeVersion( release.tag_name );
@@ -278,16 +542,13 @@ function installVersion( requestedVersion, force=false ) {
         println( "No " & assetName & " asset exists for MatchBox " & version );
         cliexit( 1 );
     }
+    var assetSize = findReleaseAssetSize( release, assetName );
 
     var downloadPath = MVM_CACHE & "/matchbox-" & version & "-" & createUUID() & ".download";
     println( "Downloading MatchBox " & label & "..." );
     var response = {};
     try {
-        response = jsonDeserialize( http({
-            url: assetUrl,
-            path: downloadPath,
-            timeout: 180
-        }).get() );
+        response = jsonDeserialize( downloadMatchBoxAsset( assetUrl, downloadPath, "Downloading MatchBox " & label, assetSize ) );
     } catch ( any e ) {
         if ( fileExists( downloadPath ) ) fileDelete( downloadPath );
         println( "failed." );
@@ -334,12 +595,22 @@ function installVersion( requestedVersion, force=false ) {
     return version;
 }
 
+/**
+ * Read the active MatchBox version marker.
+ *
+ * @return Active version or empty.
+ */
 function getCurrentVersion() {
     if ( !fileExists( MVM_CURRENT ) ) return "";
     var version = normalizeVersion( trim( fileRead( MVM_CURRENT ) ) );
     return isValidVersion( version ) ? version : "";
 }
 
+/**
+ * Create the platform-specific matchbox launcher shim.
+ *
+ * @return Nothing.
+ */
 function createMatchboxShim() {
     var binDirectory = MVM_HOME & "/bin";
     if ( !directoryExists( binDirectory ) ) directoryCreate( binDirectory );
@@ -347,23 +618,30 @@ function createMatchboxShim() {
     if ( isWindows() ) {
         fileWrite(
             binDirectory & "/matchbox.cmd",
-            "@echo off" & chr( 13 ) & chr( 10 ) &
-            "set /p MVM_VERSION=<" & chr( 34 ) & "%~dp0..\current" & chr( 34 ) & chr( 13 ) & chr( 10 ) &
-            chr( 34 ) & "%~dp0..\versions\%MVM_VERSION%\bin\matchbox.exe" & chr( 34 ) & " %*" & chr( 13 ) & chr( 10 )
+            "@echo off" & char( 13 ) & char( 10 ) &
+            "set /p MVM_VERSION=<" & char( 34 ) & "%~dp0..\current" & char( 34 ) & char( 13 ) & char( 10 ) &
+            char( 34 ) & "%~dp0..\versions\%MVM_VERSION%\bin\matchbox.exe" & char( 34 ) & " %*" & char( 13 ) & char( 10 )
         );
         return;
     }
 
     fileWrite(
         binDirectory & "/matchbox",
-        '#!/bin/sh' & chr( 10 ) &
-        'MVM_HOME=$(cd "$(dirname "$0")/.." && pwd)' & chr( 10 ) &
-        'VERSION=$(cat "$MVM_HOME/current") || exit 1' & chr( 10 ) &
-        'exec "$MVM_HOME/versions/$VERSION/bin/matchbox" "$@"' & chr( 10 )
+        '##!/bin/sh' & char( 10 ) &
+        'MVM_HOME=$(cd "$(dirname "$0")/.." && pwd)' & char( 10 ) &
+        'VERSION=$(cat "$MVM_HOME/current") || exit 1' & char( 10 ) &
+        'exec "$MVM_HOME/versions/$VERSION/bin/matchbox" "$@"' & char( 10 )
     );
     fileSetExecutable( binDirectory & "/matchbox" );
 }
 
+/**
+ * Activate an installed MatchBox version.
+ *
+ * @param version Version string.
+ *
+ * @return Nothing.
+ */
 function useVersion( version ) {
     version = trim( version );
     if ( !len( version ) && fileExists( ".mvmrc" ) ) {
@@ -384,17 +662,33 @@ function useVersion( version ) {
         cliexit( 1 );
     }
 
-    fileWrite( MVM_CURRENT, version & chr( 10 ) );
+    fileWrite( MVM_CURRENT, version & char( 10 ) );
     createMatchboxShim();
     println( "Now using MatchBox " & versionLabel( version, getInstalledMetadata( version ) ) );
 }
 
+/**
+ * Report an MVM self-update failure consistently.
+ *
+ * @param message Failure message.
+ * @param failFast Whether to exit immediately on failure.
+ *
+ * @return False.
+ */
 function updateFailure( message, failFast ) {
     println( "MVM update failed: " & message );
     if ( failFast ) cliexit( 1 );
     return false;
 }
 
+/**
+ * Replace the running MVM binary on Unix after an update.
+ *
+ * @param downloadPath Temporary download path.
+ * @param binaryPath Path to the MVM binary.
+ *
+ * @return Error message or empty.
+ */
 function replaceMvmOnUnix( downloadPath, binaryPath ) {
     var backupPath = binaryPath & ".previous";
     if ( fileExists( backupPath ) ) {
@@ -421,11 +715,19 @@ function replaceMvmOnUnix( downloadPath, binaryPath ) {
     return "";
 }
 
+/**
+ * Schedule a deferred MVM binary replacement on Windows.
+ *
+ * @param downloadPath Temporary download path.
+ * @param binDirectory MVM bin directory.
+ *
+ * @return Error message or empty.
+ */
 function scheduleMvmUpdateOnWindows( downloadPath, binDirectory ) {
     var pendingPath = binDirectory & "/mvm-update.exe";
     var scriptPath = binDirectory & "/mvm-update.cmd";
-    var quote = chr( 34 );
-    var newline = chr( 13 ) & chr( 10 );
+    var quote = char( 34 );
+    var newline = char( 13 ) & char( 10 );
     try {
         if ( fileExists( pendingPath ) ) fileDelete( pendingPath );
         if ( fileExists( scriptPath ) ) fileDelete( scriptPath );
@@ -459,6 +761,14 @@ function scheduleMvmUpdateOnWindows( downloadPath, binDirectory ) {
     }
 }
 
+/**
+ * Download and install an MVM self-update.
+ *
+ * @param release GitHub release struct.
+ * @param failFast Whether to exit immediately on failure.
+ *
+ * @return True on success.
+ */
 function updateMvmExecutable( release, failFast=true ) {
     var version = normalizeVersion( release.tag_name ?: "" );
     if ( !isValidVersion( version ) ) return updateFailure( "GitHub returned an invalid MVM version.", failFast );
@@ -513,10 +823,22 @@ function updateMvmExecutable( release, failFast=true ) {
     return true;
 }
 
+/**
+ * CLI handler for mvm update.
+ *
+ * @return Nothing.
+ */
 function updateMvmCommand() {
     updateMvmExecutable( getLatestMvmRelease() );
 }
 
+/**
+ * Check for a newer MVM release on interactive startup.
+ *
+ * @param command Current CLI command.
+ *
+ * @return Nothing.
+ */
 function checkMvmUpdateOnStartup( command ) {
     if ( !cliIsTerminal() || listFindNoCase( "help,--help,-h,version,update,completion,doctor", command ) ) return;
     var binaryPath = MVM_HOME & "/bin/mvm" & ( isWindows() ? ".exe" : "" );
@@ -529,7 +851,7 @@ function checkMvmUpdateOnStartup( command ) {
         } catch ( any e ) {}
     }
     try {
-        fileWrite( MVM_UPDATE_CHECK, nowMillis & chr( 10 ) );
+        fileWrite( MVM_UPDATE_CHECK, nowMillis & char( 10 ) );
     } catch ( any e ) {
         return;
     }
@@ -557,6 +879,11 @@ function checkMvmUpdateOnStartup( command ) {
     if ( answer == "y" || answer == "yes" ) updateMvmExecutable( release, false );
 }
 
+/**
+ * Explain that the TUI requires an interactive terminal.
+ *
+ * @return Nothing.
+ */
 function showTui() {
     if ( !cliIsTerminal() ) {
         println( "The MVM TUI requires an interactive terminal. Use 'mvm list-remote' instead." );
@@ -592,6 +919,13 @@ function showTui() {
     useVersion( selectedVersion );
 }
 
+/**
+ * Remove an installed MatchBox version.
+ *
+ * @param version Version string.
+ *
+ * @return Nothing.
+ */
 function removeVersion( version ) {
     version = normalizeVersion( trim( version ) );
     if ( !isValidVersion( version ) ) {
@@ -608,6 +942,11 @@ function removeVersion( version ) {
     println( "MatchBox " & version & " removed." );
 }
 
+/**
+ * Print all installed MatchBox versions.
+ *
+ * @return Nothing.
+ */
 function listInstalledVersions() {
     var installed = directoryList( MVM_VERSIONS, false, "name" );
     if ( !arrayLen( installed ) ) {
@@ -622,6 +961,11 @@ function listInstalledVersions() {
     }
 }
 
+/**
+ * Print the project-local .mvmrc version.
+ *
+ * @return Nothing.
+ */
 function showLocalVersion() {
     if ( !fileExists( ".mvmrc" ) ) {
         println( "No local MatchBox version is set." );
@@ -630,6 +974,11 @@ function showLocalVersion() {
     println( "Local MatchBox version: " & trim( fileRead( ".mvmrc" ) ) );
 }
 
+/**
+ * Print the active MatchBox version.
+ *
+ * @return Nothing.
+ */
 function showCurrent() {
     var current = getCurrentVersion();
     if ( !len( current ) ) {
@@ -639,12 +988,24 @@ function showCurrent() {
     println( "Current MatchBox version: " & versionLabel( current, getInstalledMetadata( current ) ) );
 }
 
+/**
+ * Clear the MVM download cache.
+ *
+ * @return Nothing.
+ */
 function cleanCache() {
     if ( directoryExists( MVM_CACHE ) ) directoryDelete( MVM_CACHE, true );
     directoryCreate( MVM_CACHE );
     println( "MVM download cache cleared." );
 }
 
+/**
+ * Generate the shell-specific MVM initialization script.
+ *
+ * @param shellName Shell identifier.
+ *
+ * @return Script contents.
+ */
 function getShellInitScript( shellName ) {
     var lines = [];
     if ( shellName == "fish" ) {
@@ -678,20 +1039,27 @@ function getShellInitScript( shellName ) {
         arrayAppend( lines, 'esac' );
         arrayAppend( lines, 'if [ -n "${BASH_VERSION:-}" ] && [ -r "$MVM_HOME/completions/mvm.bash" ]; then . "$MVM_HOME/completions/mvm.bash"; fi' );
     }
-    return arrayToList( lines, chr( 10 ) ) & chr( 10 );
+    return arrayToList( lines, char( 10 ) ) & char( 10 );
 }
 
+/**
+ * Generate the shell profile hook that sources MVM init.
+ *
+ * @param shellName Shell identifier.
+ *
+ * @return Hook contents.
+ */
 function getShellProfileHook( shellName ) {
-    var lines = [ chr( 35 ) & " MVM shell initialization" ];
+    var lines = [ char( 35 ) & " MVM shell initialization" ];
     var home = getsystemsetting( "HOME", getsystemsetting( "USERPROFILE", "" ) );
     var defaultMvmHome = home & "/.mvm";
-    var configuredMvmHome = replace( MVM_HOME, chr( 92 ), "/", "all" );
-    var defaultMvmHomePath = replace( defaultMvmHome, chr( 92 ), "/", "all" );
+    var configuredMvmHome = replace( MVM_HOME, char( 92 ), "/", "all" );
+    var defaultMvmHomePath = replace( defaultMvmHome, char( 92 ), "/", "all" );
     var isDefaultMvmHome = shellName == "powershell"
         ? configuredMvmHome.lCase() == defaultMvmHomePath.lCase()
         : configuredMvmHome == defaultMvmHomePath;
     if ( shellName == "fish" ) {
-        var fishFallback = isDefaultMvmHome ? '"$HOME/.mvm"' : "'" & replace( replace( MVM_HOME, chr( 92 ), chr( 92 ) & chr( 92 ), "all" ), "'", chr( 92 ) & "'", "all" ) & "'";
+        var fishFallback = isDefaultMvmHome ? '"$HOME/.mvm"' : "'" & replace( replace( MVM_HOME, char( 92 ), char( 92 ) & char( 92 ), "all" ), "'", char( 92 ) & "'", "all" ) & "'";
         arrayAppend( lines, "set -q MVM_HOME; or set -gx MVM_HOME " & fishFallback );
         arrayAppend( lines, 'test -s "$MVM_HOME/scripts/mvm-init.fish"; and source "$MVM_HOME/scripts/mvm-init.fish"' );
     } else if ( shellName == "powershell" ) {
@@ -703,20 +1071,28 @@ function getShellProfileHook( shellName ) {
     } else {
         if ( isDefaultMvmHome ) arrayAppend( lines, 'export MVM_HOME="${MVM_HOME:-$HOME/.mvm}"' );
         else {
-            var shellFallback = "'" & replace( MVM_HOME, "'", "'" & chr( 92 ) & "''", "all" ) & "'";
+            var shellFallback = "'" & replace( MVM_HOME, "'", "'" & char( 92 ) & "''", "all" ) & "'";
             arrayAppend( lines, "export MVM_HOME=${MVM_HOME:-" & shellFallback & "}" );
         }
         arrayAppend( lines, '[ -s "$MVM_HOME/scripts/mvm-init.sh" ] && . "$MVM_HOME/scripts/mvm-init.sh"' );
     }
-    return arrayToList( lines, chr( 10 ) );
+    return arrayToList( lines, char( 10 ) );
 }
 
+/**
+ * Insert or replace the MVM hook in a shell profile.
+ *
+ * @param profile Shell profile path.
+ * @param hook Hook text to write.
+ *
+ * @return Nothing.
+ */
 function updateShellProfile( profile, hook ) {
     var contents = fileExists( profile ) ? fileRead( profile ) : "";
-    var lineEnding = find( chr( 13 ) & chr( 10 ), contents ) ? chr( 13 ) & chr( 10 ) : chr( 10 );
-    var marker = chr( 35 ) & " MVM";
-    var slash = chr( 92 );
-    var literalDollar = slash & chr( 36 );
+    var lineEnding = find( char( 13 ) & char( 10 ), contents ) ? char( 13 ) & char( 10 ) : char( 10 );
+    var marker = char( 35 ) & " MVM";
+    var slash = char( 92 );
+    var literalDollar = slash & char( 36 );
     var lineBreak = slash & "r?" & slash & "n";
     var anyLine = "[^" & slash & "r" & slash & "n]*";
     var homePattern = "(?:export MVM_HOME=" & anyLine & "|set -gx MVM_HOME " & anyLine & "|" & literalDollar & "env:MVM_HOME = " & anyLine & ")";
@@ -725,13 +1101,13 @@ function updateShellProfile( profile, hook ) {
     contents = reReplace( contents, legacyPattern, "", "all" );
     var completionPattern = "(?m)^" & marker & " bash completion" & lineBreak & anyLine & "MVM_HOME/completions/mvm" & slash & ".bash" & anyLine & lineBreak & "?";
     contents = reReplace( contents, completionPattern, "", "all" );
-    var comparableContents = replace( contents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+    var comparableContents = replace( contents, char( 13 ) & char( 10 ), char( 10 ), "all" );
     if ( !findNoCase( trim( hook ), comparableContents ) ) {
         if ( len( trim( contents ) ) ) {
-            if ( right( contents, 1 ) != chr( 10 ) ) contents &= lineEnding;
+            if ( right( contents, 1 ) != char( 10 ) ) contents &= lineEnding;
             contents &= lineEnding;
         }
-        var profileHook = replace( hook, chr( 10 ), lineEnding, "all" );
+        var profileHook = replace( hook, char( 10 ), lineEnding, "all" );
         contents &= profileHook & lineEnding;
     }
     var profileDirectory = getDirectoryFromPath( profile );
@@ -739,6 +1115,13 @@ function updateShellProfile( profile, hook ) {
     fileWrite( profile, contents );
 }
 
+/**
+ * Inspect or repair shell initialization, PATH hook, and completions.
+ *
+ * @param fix Whether to repair detected issues.
+ *
+ * @return Status struct.
+ */
 function shellInitializationStatus( fix=false ) {
     var windows = isWindows();
     var shellName = "";
@@ -749,7 +1132,7 @@ function shellInitializationStatus( fix=false ) {
         osName = "windows";
     } else {
         var shellPath = getsystemsetting( "SHELL", "" );
-        shellName = listLast( replace( shellPath, chr( 92 ), "/", "all" ), "/" ).lCase();
+        shellName = listLast( replace( shellPath, char( 92 ), "/", "all" ), "/" ).lCase();
         osName = trim( systemExecute( "uname", [ "-s" ], 10 ).output ).lCase();
     }
     if ( !len( trim( home ) ) ) return { supported: false, configured: false };
@@ -774,7 +1157,7 @@ function shellInitializationStatus( fix=false ) {
             profile = loginProfile;
         } else if ( fix && !bridged ) {
             var bridgeLines = [];
-            if ( findNoCase( bridgeMarker, loginContents ) == 0 ) arrayAppend( bridgeLines, chr( 35 ) & " " & bridgeMarker );
+            if ( findNoCase( bridgeMarker, loginContents ) == 0 ) arrayAppend( bridgeLines, char( 35 ) & " " & bridgeMarker );
             if ( fileExists( home & "/.bash_login" ) && findNoCase( ".bash_login", loginContents ) == 0 ) {
                 arrayAppend( bridgeLines, '[ -r "$HOME/.bash_login" ] && . "$HOME/.bash_login"' );
             } else if ( fileExists( home & "/.profile" ) && findNoCase( ".profile", loginContents ) == 0 ) {
@@ -782,7 +1165,7 @@ function shellInitializationStatus( fix=false ) {
             }
             var bashrcLine = '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"';
             if ( findNoCase( bashrcLine, loginContents ) == 0 ) arrayAppend( bridgeLines, bashrcLine );
-            fileWrite( loginProfile, ( len( loginContents ) ? loginContents & chr( 10 ) : "" ) & arrayToList( bridgeLines, chr( 10 ) ) & chr( 10 ) );
+            fileWrite( loginProfile, ( len( loginContents ) ? loginContents & char( 10 ) : "" ) & arrayToList( bridgeLines, char( 10 ) ) & char( 10 ) );
             bridged = true;
         }
         if ( !fileExists( loginProfile ) || bridged ) {
@@ -804,7 +1187,7 @@ function shellInitializationStatus( fix=false ) {
     var initScript = getShellInitScript( shellName );
     var hook = getShellProfileHook( shellName );
     var profileContents = fileExists( profile ) ? fileRead( profile ) : "";
-    var normalizedProfile = replace( profileContents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+    var normalizedProfile = replace( profileContents, char( 13 ) & char( 10 ), char( 10 ), "all" );
     var registered = findNoCase( trim( hook ), normalizedProfile ) > 0;
     var scriptCurrent = fileExists( initFile ) && trim( fileRead( initFile ) ) == trim( initScript );
     var completionSupported = !windows && ( osName == "linux" || osName == "darwin" );
@@ -822,7 +1205,7 @@ function shellInitializationStatus( fix=false ) {
         }
         updateShellProfile( profile, hook );
         profileContents = fileRead( profile );
-        normalizedProfile = replace( profileContents, chr( 13 ) & chr( 10 ), chr( 10 ), "all" );
+        normalizedProfile = replace( profileContents, char( 13 ) & char( 10 ), char( 10 ), "all" );
         registered = findNoCase( trim( hook ), normalizedProfile ) > 0;
         scriptCurrent = true;
         completionCurrent = true;
@@ -839,6 +1222,13 @@ function shellInitializationStatus( fix=false ) {
     };
 }
 
+/**
+ * Run MVM health checks and optional repairs.
+ *
+ * @param fixShellInitialization Function argument.
+ *
+ * @return Nothing.
+ */
 function doctor( fixShellInitialization=false ) {
     var shellInitialization = {};
     try {
@@ -865,13 +1255,13 @@ function doctor( fixShellInitialization=false ) {
     var windows = isWindows();
     var binDirectory = MVM_HOME & "/bin";
     var expectedBin = binDirectory;
-    if ( windows ) expectedBin = replace( expectedBin, chr( 92 ), "/", "all" ).lCase();
+    if ( windows ) expectedBin = replace( expectedBin, char( 92 ), "/", "all" ).lCase();
     var path = getsystemsetting( "PATH", "" );
     var pathEntries = listToArray( path, windows ? ";" : ":" );
     var binOnPath = false;
     for ( pathEntry in pathEntries ) {
         pathEntry = trim( pathEntry );
-        if ( windows ) pathEntry = replace( pathEntry, chr( 92 ), "/", "all" ).lCase();
+        if ( windows ) pathEntry = replace( pathEntry, char( 92 ), "/", "all" ).lCase();
         if ( pathEntry == expectedBin ) binOnPath = true;
     }
 
@@ -910,12 +1300,27 @@ function doctor( fixShellInitialization=false ) {
     println( "MVM is healthy." );
 }
 
+/**
+ * Extract arguments to forward to MatchBox from CLI positionals.
+ *
+ * @param positionals Positional CLI arguments.
+ *
+ * @return Argument array.
+ */
 function getForwardedArgs( positionals ) {
     var forwarded = [];
     for ( var i = 2; i <= arrayLen( positionals ); i++ ) arrayAppend( forwarded, positionals[ i ] );
     return forwarded;
 }
 
+/**
+ * Execute the active MatchBox version with forwarded arguments.
+ *
+ * @param execArguments Arguments to forward.
+ * @param cliOptions Parsed CLI options.
+ *
+ * @return Nothing.
+ */
 function execCurrentVersion( execArguments, cliOptions ) {
     var current = getCurrentVersion();
     if ( !len( current ) ) {
@@ -942,8 +1347,13 @@ function execCurrentVersion( execArguments, cliOptions ) {
     if ( isNull( result.exitCode ) || result.exitCode != 0 ) cliexit( isNull( result.exitCode ) ? 1 : result.exitCode );
 }
 
+/**
+ * Return the Bash completion script for MVM commands.
+ *
+ * @return Bash script.
+ */
 function getBashCompletionScript() {
-    var quote = chr( 34 );
+    var quote = char( 34 );
     var lines = [];
     arrayAppend( lines, "_mvm_completions() {" );
     arrayAppend( lines, "  local cur=${COMP_WORDS[COMP_CWORD]}" );
@@ -965,7 +1375,7 @@ function getBashCompletionScript() {
     arrayAppend( lines, "    use|local|remove)" );
     arrayAppend( lines, "      local -a versions=()" );
     arrayAppend( lines, "      for version in " & quote & "${MVM_HOME:-$HOME/.mvm}/versions/" & quote & "*; do" );
-    arrayAppend( lines, "        [[ -d $version ]] && versions+=( " & quote & "${version" & chr( 35 ) & chr( 35 ) & "*/}" & quote & " )" );
+    arrayAppend( lines, "        [[ -d $version ]] && versions+=( " & quote & "${version" & char( 35 ) & char( 35 ) & "*/}" & quote & " )" );
     arrayAppend( lines, "      done" );
     arrayAppend( lines, "      COMPREPLY=( $(compgen -W " & quote & "${versions[*]}" & quote & " -- " & quote & "$cur" & quote & ") )" );
     arrayAppend( lines, "      ;;" );
@@ -976,13 +1386,23 @@ function getBashCompletionScript() {
     arrayAppend( lines, "if [[ $- == *i* ]]; then" );
     arrayAppend( lines, "  complete -o default -F _mvm_completions mvm" );
     arrayAppend( lines, "fi" );
-    return arrayToList( lines, chr( 10 ) ) & chr( 10 );
+    return arrayToList( lines, char( 10 ) ) & char( 10 );
 }
 
+/**
+ * Print the Bash completion script.
+ *
+ * @return Nothing.
+ */
 function showBashCompletion() {
     print( getBashCompletionScript() );
 }
 
+/**
+ * Print the MVM CLI help text.
+ *
+ * @return Nothing.
+ */
 function showHelp() {
     println( "📦 MatchBox Version Manager (MVM) v" & MVM_VERSION );
     println( "" );
@@ -1030,7 +1450,7 @@ switch ( command ) {
         if ( arrayLen( args ) < 2 || !len( trim( args[ 2 ] ) ) ) {
             showLocalVersion();
         } else {
-            fileWrite( ".mvmrc", trim( args[ 2 ] ) & chr( 10 ) );
+            fileWrite( ".mvmrc", trim( args[ 2 ] ) & char( 10 ) );
             println( "Local MatchBox version set to " & trim( args[ 2 ] ) );
         }
         break;
