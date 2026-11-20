@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $repository = "ortus-boxlang/matchbox-quick-installer"
 $productUrl = "https://matchbox.boxlang.io/"
 $mvmHome = if ($env:MVM_HOME) { $env:MVM_HOME } else { Join-Path $HOME ".mvm" }
@@ -55,7 +55,7 @@ if (-not $env:NO_COLOR -and $Host.Name -eq "ConsoleHost") {
     $COLOR_ERROR = [char]27 + "[31m"
     $COLOR_RESET = [char]27 + "[0m"
 }
-$interactive = -not $NON_INTERACTIVE -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected
+$interactive = -not $NON_INTERACTIVE -and -not ($env:CI -in @("1", "true")) -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected
 
 $logo = @(
     '  ▄██████████████████████▄'
