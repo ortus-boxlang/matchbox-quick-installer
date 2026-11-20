@@ -56,12 +56,56 @@ if (-not $env:NO_COLOR -and $Host.Name -eq "ConsoleHost") {
     $COLOR_RESET = [char]27 + "[0m"
 }
 $interactive = -not $NON_INTERACTIVE -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected
+$animateLogo = $interactive -and [bool]$COLOR_RESET -and $env:MVM_NO_ANIMATION -ne "1"
 
-$logo = @(
+$logoFrames = @{}
+$logoFrames[1] = @(
     '  ▄██████████████████████▄'
     '▄██▀▀          ▄▄      ▀▀██▄'
     '██▀          ▄███        ███'
     '██          ▄█████▄       ██'
+    '██     ▄▄   ████████▄     ██'
+    '██    ▄███▄ █████████▄    ██'
+    '██    ████████  ██████    ██'
+    '██    █████▀██   ▀████    ██'
+    '██     ████       ███▀    ██'
+    '██▄     ▀██▄▄   ▄██▀     ███'
+    '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+    '  ▀██████████████████████▀'
+)
+$logoFrames[2] = @(
+    '  ▄██████████████████████▄'
+    '▄██▀▀          ▄▄      ▀▀██▄'
+    '██▀          ▄██        ███'
+    '██         ▄█████▄       ██'
+    '██     ▄▄   ████████▄     ██'
+    '██    ▄███▄ █████████▄    ██'
+    '██    ████████  ██████    ██'
+    '██    █████▀██   ▀████    ██'
+    '██     ████       ███▀    ██'
+    '██▄     ▀██▄▄   ▄██▀     ███'
+    '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+    '  ▀██████████████████████▀'
+)
+$logoFrames[3] = @(
+    '  ▄██████████████████████▄'
+    '▄██▀▀         ▄██▄       ▀▀██▄'
+    '██▀          ▄████       ███'
+    '██          ▄█████▄       ██'
+    '██     ▄▄  ▄████████▄     ██'
+    '██    ▄███▄██████████▄    ██'
+    '██    ████████  ██████    ██'
+    '██    █████▀██   ▀████    ██'
+    '██     ████       ███▀    ██'
+    '██▄     ▀██▄▄   ▄██▀     ███'
+    '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+    '  ▀██████████████████████▀'
+)
+$logoFrames[4] = @(
+    '  ▄██████████████████████▄'
+    '▄██▀▀          ▄▄      ▀▀██▄'
+    '██▀          ▄███        ███'
+    '██          ▄████▄       ██'
     '██     ▄▄   ████████▄     ██'
     '██    ▄███▄ █████████▄    ██'
     '██    ████████  ██████    ██'
@@ -77,13 +121,29 @@ $logoColors = @(
     "38;2;0;183;255", "38;2;0;174;255", "38;2;0;165;255", "38;2;0;155;255"
 )
 
+function Draw-Logo {
+    param([int]$Frame)
+    $lines = $logoFrames[$Frame]
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($COLOR_RESET) {
+            Write-Host ("$([char]27)[$($logoColors[$i])m$($lines[$i])$COLOR_RESET")
+        } else {
+            Write-Host $lines[$i]
+        }
+    }
+}
+
 function Show-Banner {
     Write-Host ""
-    for ($i = 0; $i -lt $logo.Count; $i++) {
-        if ($COLOR_RESET) {
-            Write-Host ("$([char]27)[$($logoColors[$i])m$($logo[$i])$COLOR_RESET")
-        } else {
-            Write-Host $logo[$i]
+    Draw-Logo 1
+    if ($animateLogo) {
+        $origin = $Host.UI.RawUI.CursorPosition
+        for ($round = 1; $round -le 2; $round++) {
+            foreach ($frame in @(2, 3, 4, 3, 2, 1)) {
+                $Host.UI.RawUI.CursorPosition = $origin
+                Draw-Logo $frame
+                Start-Sleep -Milliseconds 120
+            }
         }
     }
     Write-Host ""

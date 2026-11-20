@@ -45,6 +45,7 @@ if [[ -t 1 && -t 2 && "${TERM:-dumb}" != "dumb" && -z "${NO_COLOR:-}" ]]; then
     COLOR_WARNING=$'\033[33m' COLOR_ERROR=$'\033[31m'
 fi
 
+ANIMATE_LOGO=no
 PROMPT_DEVICE=""
 if [[ "$NON_INTERACTIVE" == "no" && -t 1 && -r /dev/tty && -w /dev/tty ]]; then
     PROMPT_DEVICE=/dev/tty
@@ -56,8 +57,22 @@ if [[ "$NON_INTERACTIVE" == "no" && -t 1 && -r /dev/tty && -w /dev/tty ]]; then
     fi
 fi
 
+if [[ -n "$PROMPT_DEVICE" && -n "$COLOR_RESET" && "${MVM_NO_ANIMATION:-0}" != "1" ]]; then
+    ANIMATE_LOGO=yes
+fi
+
+declare -a LOGO_LINES=() LOGO_COLORS=()
+
+draw_logo() {
+    local i color
+    for i in "${!LOGO_LINES[@]}"; do
+        if [[ -n "$COLOR_RESET" ]]; then color="${LOGO_COLORS[$i]}"; else color=""; fi
+        printf '%b%s%b\n' "$color" "${LOGO_LINES[$i]}" "$COLOR_RESET"
+    done
+}
+
 show_banner() {
-    local -a lines=(
+    local -a frame1=(
         '  ▄██████████████████████▄'
         '▄██▀▀          ▄▄      ▀▀██▄'
         '██▀          ▄███        ███'
@@ -71,7 +86,49 @@ show_banner() {
         '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
         '  ▀██████████████████████▀'
     )
-    local -a colors=(
+    local -a frame2=(
+        '  ▄██████████████████████▄'
+        '▄██▀▀          ▄▄      ▀▀██▄'
+        '██▀          ▄██        ███'
+        '██         ▄█████▄       ██'
+        '██     ▄▄   ████████▄     ██'
+        '██    ▄███▄ █████████▄    ██'
+        '██    ████████  ██████    ██'
+        '██    █████▀██   ▀████    ██'
+        '██     ████       ███▀    ██'
+        '██▄     ▀██▄▄   ▄██▀     ███'
+        '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+        '  ▀██████████████████████▀'
+    )
+    local -a frame3=(
+        '  ▄██████████████████████▄'
+        '▄██▀▀         ▄██▄       ▀▀██▄'
+        '██▀          ▄████       ███'
+        '██          ▄█████▄       ██'
+        '██     ▄▄  ▄████████▄     ██'
+        '██    ▄███▄██████████▄    ██'
+        '██    ████████  ██████    ██'
+        '██    █████▀██   ▀████    ██'
+        '██     ████       ███▀    ██'
+        '██▄     ▀██▄▄   ▄██▀     ███'
+        '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+        '  ▀██████████████████████▀'
+    )
+    local -a frame4=(
+        '  ▄██████████████████████▄'
+        '▄██▀▀          ▄▄      ▀▀██▄'
+        '██▀          ▄███        ███'
+        '██          ▄████▄       ██'
+        '██     ▄▄   ████████▄     ██'
+        '██    ▄███▄ █████████▄    ██'
+        '██    ████████  ██████    ██'
+        '██    █████▀██   ▀████    ██'
+        '██     ████       ███▀    ██'
+        '██▄     ▀██▄▄   ▄██▀     ███'
+        '▀██▄▄     ▀▀▀▀▀▀▀▀     ▄▄██▀'
+        '  ▀██████████████████████▀'
+    )
+    LOGO_COLORS=(
         $'\033[38;2;0;255;120m' $'\033[38;2;0;247;140m'
         $'\033[38;2;0;238;158m' $'\033[38;2;0;229;177m'
         $'\033[38;2;0;220;195m' $'\033[38;2;0;211;213m'
@@ -81,12 +138,25 @@ show_banner() {
         $'\033[38;2;0;148;255m' $'\033[38;2;0;141;255m'
         $'\033[38;2;0;135;255m' $'\033[38;2;0;130;255m'
     )
-    local i color=""
+    local frame round
     printf '\n'
-    for i in "${!lines[@]}"; do
-        if [[ -n "$COLOR_RESET" ]]; then color="${colors[$i]}"; else color=""; fi
-        printf '%b%s%b\n' "$color" "${lines[$i]}" "$COLOR_RESET"
-    done
+    LOGO_LINES=("${frame1[@]}")
+    draw_logo
+    if [[ "$ANIMATE_LOGO" == "yes" ]]; then
+        for round in 1 2; do
+            for frame in 2 3 4 3 2 1; do
+                printf '\033[%dA' "${#frame1[@]}"
+                case "$frame" in
+                    1) LOGO_LINES=("${frame1[@]}") ;;
+                    2) LOGO_LINES=("${frame2[@]}") ;;
+                    3) LOGO_LINES=("${frame3[@]}") ;;
+                    4) LOGO_LINES=("${frame4[@]}") ;;
+                esac
+                draw_logo
+                sleep 0.12
+            done
+        done
+    fi
     printf '\n'
     printf '  %s%sMATCHBOX VERSION MANAGER%s\n' "$COLOR_BOLD" "$COLOR_ACCENT" "$COLOR_RESET"
     printf '  The Rust runtime for BoxLang\n'
