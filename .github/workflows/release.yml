@@ -24,6 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Windows arm64 is still built in the build job, but CommandBox cannot run there yet.
         include:
           - runner: ubuntu-latest
             platform: linux-x64
@@ -35,8 +36,6 @@ jobs:
             platform: macos-arm64
           - runner: windows-latest
             platform: windows-x64
-          - runner: windows-11-arm
-            platform: windows-arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

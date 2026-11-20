@@ -68,7 +68,7 @@ fi
 SHELL_COMMAND='source "$HOME/.bashrc"; source "$HOME/.bashrc"; echo "$MATCHBOX_HOME"; echo "$PATH"'
 DEFAULT_OUTPUT="$(HOME="$HOME_DIR" MVM_HOME="$MVM_HOME_DIR" MATCHBOX_HOME="" bash --noprofile --norc -c "$SHELL_COMMAND")"
 assert_contains "$HOME_DIR/.matchbox" "$DEFAULT_OUTPUT" "MATCHBOX_HOME defaults to ~/.matchbox"
-DEFAULT_COUNT="$(printf '%s\n' "$DEFAULT_OUTPUT" | grep -o '[.]matchbox/bin' | wc -l | tr -d ' ')"
+DEFAULT_COUNT="$(printf '%s\n' "$DEFAULT_OUTPUT" | grep -F -o "$HOME_DIR/.matchbox/bin" | wc -l | tr -d ' ')"
 [ "$DEFAULT_COUNT" = "1" ] || fail "MATCHBOX_HOME/bin is added exactly once (found $DEFAULT_COUNT)"
 
 CUSTOM_HOME="$SANDBOX/custom-matchbox"

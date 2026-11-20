@@ -37,7 +37,8 @@ class extends="testbox.system.BaseSpec" {
 
             it( "updates the MVM executable from the latest channel release", function() {
                 var binDirectory = variables.mvmHome & "/bin";
-                var mvmBinary = binDirectory & "/mvm";
+                var windowsPlatform = getsystemsetting( "OS", "" ).lCase().contains( "windows" );
+                var mvmBinary = binDirectory & "/mvm" & ( windowsPlatform ? ".exe" : "" );
                 directoryCreate( binDirectory );
                 fileWrite( mvmBinary, "old MVM binary" );
 
@@ -189,7 +190,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( loginShell.output ).toInclude( "/ignored" );
                 expect( matchboxStartup.exitCode ).toBe( 0 );
                 expect( matchboxStartup.output ).toInclude( userHome & "/.matchbox" );
-                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", matchboxStartup.output ) ) ).toBe( 1 );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), matchboxStartup.output ) ) ).toBe( 1 );
             } );
 
             it( "repairs Bash completions when doctor is asked to fix them", function() {
@@ -325,7 +326,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( zshStartup.output ).toInclude( mvmHome );
                 expect( arrayLen( reMatchNoCase( "custom-mvm/bin", zshStartup.output ) ) ).toBe( 1 );
                 expect( zshStartup.output ).toInclude( userHome & "/.matchbox" );
-                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", zshStartup.output ) ) ).toBe( 1 );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), zshStartup.output ) ) ).toBe( 1 );
                 expect( zshProfile ).toInclude( '$MVM_HOME/scripts/mvm-init.sh' );
                 expect( zshProfile ).notToInclude( 'export PATH="$MVM_HOME/bin:$PATH"' );
                 expect( fishFix.exitCode ).toBe( 0 );
@@ -386,7 +387,7 @@ class extends="testbox.system.BaseSpec" {
                 expect( configured.output ).toInclude( customMatchboxHome & "/bin" );
                 expect( fallback.exitCode ).toBe( 0 );
                 expect( fallback.output ).toInclude( userHome & "/.matchbox" );
-                expect( arrayLen( reMatchNoCase( "[.]matchbox/bin", fallback.output ) ) ).toBe( 1 );
+                expect( arrayLen( reMatchNoCase( reEscape( userHome & "/.matchbox/bin" ), fallback.output ) ) ).toBe( 1 );
             } );
 
             it( "asks before updating MVM on interactive startup", function() {
